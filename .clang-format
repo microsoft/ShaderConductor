@@ -1,0 +1,16 @@
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: true
+BreakBeforeBraces: Allman
+ColumnLimit: 140
+Cpp11BracedListStyle: false
+IndentWidth: 4
+Language: Cpp
+NamespaceIndentation: All
+PointerAlignment: Left
+SpaceBeforeParens: ControlStatements
+Standard: Cpp11
+TabWidth: 4
+UseTab: Never
