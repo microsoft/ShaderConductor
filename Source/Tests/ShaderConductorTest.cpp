@@ -51,7 +51,7 @@ namespace
         return ret;
     }
 
-    void TrimZeros(std::vector<uint8_t>* data)
+    void TrimTailingZeros(std::vector<uint8_t>* data)
     {
         assert(data != nullptr);
 
@@ -76,14 +76,14 @@ namespace
         std::string compareName = name;
         if (!target.version.empty())
         {
-            compareName += "." + std::string(target.version);
+            compareName += "." + target.version;
         }
         compareName += "." + extMap[static_cast<uint32_t>(target.language)];
 
-        std::vector<uint8_t> expected = LoadFile(TEST_DATA_DIR "Expected/" + std::string(compareName), result.isText);
+        std::vector<uint8_t> expected = LoadFile(TEST_DATA_DIR "Expected/" + compareName, result.isText);
         if (result.isText)
         {
-            TrimZeros(&expected);
+            TrimTailingZeros(&expected);
         }
 
         const auto& actual = result.target;
@@ -91,7 +91,7 @@ namespace
         {
             if (!actual.empty())
             {
-                std::ofstream actual_file(TEST_DATA_DIR "Result/" + std::string(compareName),
+                std::ofstream actual_file(TEST_DATA_DIR "Result/" + compareName,
                                           std::ios_base::out | (result.isText ? 0 : std::ios_base::binary));
                 actual_file.write(reinterpret_cast<const char*>(actual.data()), actual.size());
             }
@@ -111,7 +111,10 @@ namespace
                 Compiler::SourceDesc& source = std::get<1>(src);
 
                 source.fileName = TEST_DATA_DIR "Input/" + name + ".hlsl";
-                source.source = std::string(reinterpret_cast<char*>(LoadFile(source.fileName, true).data()));
+
+                std::vector<uint8_t> input = LoadFile(source.fileName, true);
+                TrimTailingZeros(&input);
+                source.source = std::string(reinterpret_cast<char*>(input.data()), input.size());
             }
         }
 

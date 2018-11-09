@@ -34,7 +34,15 @@ ShaderConductor has been tested on Windows. Linux and macOS support are coming s
 
 ### The script way:
 
-Run BuildAll.py. It automatically grabs external dependencies to External folder, generates VS2017 solution file in Build/Vs2017X64, and builds in Debug x64 configuration.
+```
+  BuildAll.py <BuildSystem> <Architecture> <Configuration>
+```
+where,
+* \<BuildSystem\> can be ninja or vs2017. Default is vs2017.
+* \<Architecture\> can be x64 or x86. Default is x64.
+* \<Configuration\> can be Debug, Release, RelWithDebInfo, or MinSizeRel. Default is Release.
+ 
+This script automatically grabs external dependencies to External folder, generates project file in Build/<BuildSystem>-<Platform>-<Configuration>, and builds it.
 
 ### The manual way:
 

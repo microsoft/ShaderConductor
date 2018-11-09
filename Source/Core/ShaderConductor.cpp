@@ -258,7 +258,11 @@ namespace
         ret.resize(includeFile.tellg());
         includeFile.seekg(0, std::ios::beg);
         includeFile.read(ret.data(), ret.size());
-        return std::string(ret.data());
+        while (!ret.empty() && (ret.back() == '\0'))
+        {
+            ret.pop_back();
+        }
+        return std::string(ret.data(), ret.size());
     }
 
     Compiler::ResultDesc CompileToBinary(const Compiler::SourceDesc& source, ShadingLanguage targetLanguage)
