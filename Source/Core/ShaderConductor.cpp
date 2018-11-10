@@ -265,6 +265,21 @@ namespace
         return std::string(ret.data(), ret.size());
     }
 
+    Compiler::ResultDesc AppendError(const Compiler::ResultDesc& previousResult, const std::string& msg)
+    {
+        Compiler::ResultDesc ret;
+        ret.isText = previousResult.isText;
+        ret.errorWarningMsg = previousResult.errorWarningMsg;
+        if (!ret.errorWarningMsg.empty())
+        {
+            ret.errorWarningMsg += "\n";
+        }
+        ret.errorWarningMsg += msg;
+        ret.hasError = true;
+
+        return ret;
+    }
+
     Compiler::ResultDesc CompileToBinary(const Compiler::SourceDesc& source, ShadingLanguage targetLanguage)
     {
         assert((targetLanguage == ShadingLanguage::Dxil) || (targetLanguage == ShadingLanguage::SpirV));
@@ -379,6 +394,8 @@ namespace
 
         Compiler::ResultDesc ret;
 
+        ret.isText = false;
+
         ComPtr<IDxcBlobEncoding> errors;
         IFT(compileResult->GetErrorBuffer(errors.GetAddressOf()));
         if (errors != nullptr)
@@ -402,8 +419,6 @@ namespace
             }
         }
 
-        ret.isText = false;
-
         return ret;
     }
 
@@ -416,9 +431,16 @@ namespace
         Compiler::ResultDesc ret;
 
         ret.errorWarningMsg = binaryResult.errorWarningMsg;
+        ret.isText = true;
 
-        std::vector<uint32_t> binary32(binaryResult.target.size() / sizeof(uint32_t));
-        memcpy(binary32.data(), binaryResult.target.data(), binaryResult.target.size());
+        uint32_t intVersion = 0;
+        if (!target.version.empty())
+        {
+            intVersion = std::stoi(target.version);
+        }
+
+        const uint32_t* spirvIr = reinterpret_cast<const uint32_t*>(binaryResult.target.data());
+        const size_t spirvSize = binaryResult.target.size() / sizeof(uint32_t);
 
         std::unique_ptr<spirv_cross::CompilerGLSL> compiler;
         bool combinedImageSamplers = false;
@@ -427,18 +449,34 @@ namespace
         switch (target.language)
         {
         case ShadingLanguage::Hlsl:
-            compiler = std::make_unique<spirv_cross::CompilerHLSL>(std::move(binary32));
+            if ((source.stage == ShaderStage::GeometryShader) && (intVersion < 40))
+            {
+                return AppendError(ret, "HLSL shader model earlier than 4.0 doesn't have GS or CS.");
+            }
+            if ((source.stage == ShaderStage::ComputeShader) && (intVersion < 50))
+            {
+                return AppendError(ret, "CS in HLSL shader model earlier than 5.0 is not supported.");
+            }
+            if (((source.stage == ShaderStage::HullShader) || (source.stage == ShaderStage::DomainShader)) && (intVersion < 50))
+            {
+                return AppendError(ret, "HLSL shader model earlier than 5.0 doesn't have HS or DS.");
+            }
+            compiler = std::make_unique<spirv_cross::CompilerHLSL>(spirvIr, spirvSize);
             break;
 
         case ShadingLanguage::Glsl:
         case ShadingLanguage::Essl:
-            compiler = std::make_unique<spirv_cross::CompilerGLSL>(std::move(binary32));
+            compiler = std::make_unique<spirv_cross::CompilerGLSL>(spirvIr, spirvSize);
             combinedImageSamplers = true;
             buildDummySampler = true;
             break;
 
         case ShadingLanguage::Msl:
-            compiler = std::make_unique<spirv_cross::CompilerMSL>(std::move(binary32));
+            if (source.stage == ShaderStage::GeometryShader)
+            {
+                return AppendError(ret, "MSL doesn't have GS.");
+            }
+            compiler = std::make_unique<spirv_cross::CompilerMSL>(spirvIr, spirvSize);
             break;
 
         default:
@@ -480,7 +518,7 @@ namespace
         spirv_cross::CompilerGLSL::Options opts = compiler->get_common_options();
         if (!target.version.empty())
         {
-            opts.version = std::stoi(target.version);
+            opts.version = intVersion;
         }
         opts.es = (target.language == ShadingLanguage::Essl);
         opts.force_temporary = false;
@@ -501,9 +539,7 @@ namespace
             {
                 if (opts.version < 30)
                 {
-                    ret.errorWarningMsg += "\nShader model earlier than 30 (3.0) is not supported.";
-                    ret.hasError = true;
-                    return ret;
+                    return AppendError(ret, "HLSL shader model earlier than 3.0 is not supported.");
                 }
                 hlslOpts.shader_model = opts.version;
             }
@@ -565,8 +601,6 @@ namespace
             ret.errorWarningMsg = error.what();
             ret.hasError = true;
         }
-
-        ret.isText = true;
 
         return ret;
     }

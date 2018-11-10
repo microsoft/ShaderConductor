@@ -61,7 +61,7 @@ namespace
         }
     }
 
-    void HlslToAnyTest(const std::string& name, const Compiler::SourceDesc& source, const Compiler::TargetDesc& target)
+    void HlslToAnyTest(const std::string& name, const Compiler::SourceDesc& source, const Compiler::TargetDesc& target, bool expectSuccess)
     {
         static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl" };
         static_assert(sizeof(extMap) / sizeof(extMap[0]) == static_cast<uint32_t>(ShadingLanguage::NumShadingLanguages),
@@ -69,34 +69,42 @@ namespace
 
         const auto result = Compiler::Compile(source, target);
 
-        EXPECT_FALSE(result.hasError);
-        EXPECT_STREQ(result.errorWarningMsg.c_str(), "");
-        EXPECT_TRUE(result.isText);
-
-        std::string compareName = name;
-        if (!target.version.empty())
+        if (expectSuccess)
         {
-            compareName += "." + target.version;
-        }
-        compareName += "." + extMap[static_cast<uint32_t>(target.language)];
+            EXPECT_FALSE(result.hasError);
+            EXPECT_STREQ(result.errorWarningMsg.c_str(), "");
+            EXPECT_TRUE(result.isText);
 
-        std::vector<uint8_t> expected = LoadFile(TEST_DATA_DIR "Expected/" + compareName, result.isText);
-        if (result.isText)
-        {
-            TrimTailingZeros(&expected);
-        }
-
-        const auto& actual = result.target;
-        if (expected != actual)
-        {
-            if (!actual.empty())
+            std::string compareName = name;
+            if (!target.version.empty())
             {
-                std::ofstream actual_file(TEST_DATA_DIR "Result/" + compareName,
-                                          std::ios_base::out | (result.isText ? 0 : std::ios_base::binary));
-                actual_file.write(reinterpret_cast<const char*>(actual.data()), actual.size());
+                compareName += "." + target.version;
+            }
+            compareName += "." + extMap[static_cast<uint32_t>(target.language)];
+
+            std::vector<uint8_t> expected = LoadFile(TEST_DATA_DIR "Expected/" + compareName, result.isText);
+            if (result.isText)
+            {
+                TrimTailingZeros(&expected);
             }
 
-            EXPECT_TRUE(false);
+            const auto& actual = result.target;
+            if (expected != actual)
+            {
+                if (!actual.empty())
+                {
+                    std::ofstream actual_file(TEST_DATA_DIR "Result/" + compareName,
+                                              std::ios_base::out | (result.isText ? 0 : std::ios_base::binary));
+                    actual_file.write(reinterpret_cast<const char*>(actual.data()), actual.size());
+                }
+
+                EXPECT_TRUE(false);
+            }
+        }
+        else
+        {
+            EXPECT_TRUE(result.hasError);
+            EXPECT_TRUE(result.target.empty());
         }
     }
 
@@ -124,9 +132,9 @@ namespace
             {
                 for (const auto& target : std::get<2>(combination))
                 {
-                    if (std::get<0>(target) && (std::get<1>(target).language == targetSl))
+                    if (std::get<1>(target).language == targetSl)
                     {
-                        HlslToAnyTest(std::get<0>(combination), std::get<1>(combination), std::get<1>(target));
+                        HlslToAnyTest(std::get<0>(combination), std::get<1>(combination), std::get<1>(target), std::get<0>(target));
                     }
                 }
             }
@@ -245,7 +253,7 @@ namespace
                     "ToneMapping_PS",
                     { "", "", "", ShaderStage::PixelShader },
                     {
-                        { false, { ShadingLanguage::Hlsl, "30" } }, // TODO Github #6: Separate image and samplers not supported
+                        //{ false, { ShadingLanguage::Hlsl, "30" } }, // TODO Github #6: Separate image and samplers not supported
                         { true, { ShadingLanguage::Hlsl, "40" } },
                         { true, { ShadingLanguage::Hlsl, "50" } },
 
@@ -276,8 +284,8 @@ namespace
                     { "", "", "", ShaderStage::GeometryShader, { { "FIXED_VERTEX_RADIUS", "5.0" } } },
                     {
                         { false, { ShadingLanguage::Hlsl, "30" } }, // No GS in HLSL SM3
-                        { false, { ShadingLanguage::Hlsl, "40" } }, // TODO Github #4: Unsupported execution model
-                        { false, { ShadingLanguage::Hlsl, "50" } }, // TODO Github #4: Unsupported execution model
+                        //{ false, { ShadingLanguage::Hlsl, "40" } }, // TODO Github #4: Unsupported execution model
+                        //{ false, { ShadingLanguage::Hlsl, "50" } }, // TODO Github #4: Unsupported execution model
 
                         { true, { ShadingLanguage::Glsl, "300" } },
                         { true, { ShadingLanguage::Glsl, "410" } },
@@ -307,7 +315,7 @@ namespace
                     {
                         { false, { ShadingLanguage::Hlsl, "30" } }, // No HS in HLSL SM3
                         { false, { ShadingLanguage::Hlsl, "40" } }, // No HS in HLSL SM4
-                        { false, { ShadingLanguage::Hlsl, "50" } }, // TODO Github #5: Unsupported builtin
+                        //{ false, { ShadingLanguage::Hlsl, "50" } }, // TODO Github #5: Unsupported builtin
 
                         { true, { ShadingLanguage::Glsl, "300" } },
                         { true, { ShadingLanguage::Glsl, "410" } },
@@ -337,7 +345,7 @@ namespace
                     {
                         { false, { ShadingLanguage::Hlsl, "30" } }, // No HS in HLSL SM3
                         { false, { ShadingLanguage::Hlsl, "40" } }, // No HS in HLSL SM4
-                        { false, { ShadingLanguage::Hlsl, "50" } }, // TODO Github #5: Unsupported builtin
+                        //{ false, { ShadingLanguage::Hlsl, "50" } }, // TODO Github #5: Unsupported builtin
 
                         { true, { ShadingLanguage::Glsl, "300" } },
                         { true, { ShadingLanguage::Glsl, "410" } },
@@ -366,7 +374,7 @@ namespace
                     { "", "", "", ShaderStage::ComputeShader },
                     {
                         { false, { ShadingLanguage::Hlsl, "30" } }, // No CS in HLSL SM3
-                        { false, { ShadingLanguage::Hlsl, "40" } }, // No CS in HLSL SM4
+                        { false, { ShadingLanguage::Hlsl, "40" } }, // CS in HLSL SM4 is not supported
                         { true, { ShadingLanguage::Hlsl, "50" } },
 
                         { true, { ShadingLanguage::Glsl, "300" } },
