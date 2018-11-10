@@ -5,7 +5,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
-import os, platform, subprocess, sys
+import multiprocessing, os, platform, subprocess, sys
 
 def FindProgramFilesFolder():
 	env = os.environ
@@ -84,11 +84,13 @@ if __name__ == "__main__":
 	os.chdir(buildDir)
 	buildDir = os.path.abspath(os.curdir)
 
+	parallel = multiprocessing.cpu_count()
+
 	cmd = "%sVCVARSALL.BAT %s && cd /d \"%s\"" % (vs2017Folder, vcOption, buildDir)
 	if (buildSys == "ninja"):
-		cmd += " && set CC=cl.exe && set CXX=cl.exe && cmake -G Ninja -DCMAKE_BUILD_TYPE:STRING=\"%s\" ../../ && ninja" % configuration
+		cmd += " && set CC=cl.exe && set CXX=cl.exe && cmake -G Ninja -DCMAKE_BUILD_TYPE:STRING=\"%s\" ../../ && ninja -j%d" % (configuration, parallel)
 	else:
-		cmd += " && cmake -G \"Visual Studio 15\" -T host=x64 -A %s ../../ && MSBuild ALL_BUILD.vcxproj /nologo /m:2 /v:m /p:Configuration=%s,Platform=%s" % (arch, configuration, arch)
+		cmd += " && cmake -G \"Visual Studio 15\" -T host=x64 -A %s ../../ && MSBuild ALL_BUILD.vcxproj /nologo /m:%d /v:m /p:Configuration=%s,Platform=%s" % (arch, parallel, configuration, arch)
 	subprocess.call(cmd)
 
 	os.chdir(originalDir)

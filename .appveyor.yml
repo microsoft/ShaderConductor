@@ -1,0 +1,26 @@
+version: '{branch}-{build}'
+
+clone_depth: 5
+
+platform:
+  - x64
+
+environment:
+  matrix:
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+
+configuration:
+  - Release
+
+install:
+  - mkdir c:\ninja && cd c:\ninja
+  - appveyor-retry appveyor DownloadFile https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip
+  - 7z x ninja-win.zip
+  - set PATH=C:\ninja;%PATH%
+
+build_script:
+  - cd %APPVEYOR_BUILD_FOLDER%
+  - python BuildAll.py ninja %PLATFORM% %CONFIGURATION%
+
+test_script:
+  - Build\ninja-%PLATFORM%-%CONFIGURATION%\Bin\ShaderConductorTest.exe
