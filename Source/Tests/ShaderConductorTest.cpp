@@ -253,7 +253,7 @@ namespace
                     "ToneMapping_PS",
                     { "", "", "", ShaderStage::PixelShader },
                     {
-                        //{ false, { ShadingLanguage::Hlsl, "30" } }, // TODO Github #6: Separate image and samplers not supported
+                        { true, { ShadingLanguage::Hlsl, "30" } },
                         { true, { ShadingLanguage::Hlsl, "40" } },
                         { true, { ShadingLanguage::Hlsl, "50" } },
 

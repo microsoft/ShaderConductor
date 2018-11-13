@@ -544,6 +544,12 @@ namespace
                 hlslOpts.shader_model = opts.version;
             }
 
+            if (hlslOpts.shader_model <= 30)
+            {
+                combinedImageSamplers = true;
+                buildDummySampler = true;
+            }
+
             hlslCompiler->set_hlsl_options(hlslOpts);
         }
         else if (target.language == ShadingLanguage::Msl)

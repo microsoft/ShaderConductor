@@ -4,7 +4,7 @@
 set(cxxopts_REV "3f2d70530219e09fe7e563f86126b0d3b228a60d")
 set(googletest_REV "440527a61e1c91188195f7de212c63c77e8f0a45")
 set(DirectXShaderCompiler_REV "362defac9072f9bfd81fdfeb4dc8db9226f38d5f")
-set(SPIRV_Cross_REV "cc5c0204d8bcdadbb4add03e53346df98bf27fa4")
+set(SPIRV_Cross_REV "f734d78c1536b9c786bd54ab6a30caa4f8cb0bff")
 
 function(UpdateExternalLib name url rev submodules)
 	set(need_checkout FALSE)

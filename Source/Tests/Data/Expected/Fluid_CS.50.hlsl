@@ -9,13 +9,14 @@ struct ParticleForces
     float2 acceleration;
 };
 
-cbuffer cbSimulationConstants : register(b0)
+cbuffer type_cbSimulationConstants : register(b0)
 {
     float cbSimulationConstants_timeStep : packoffset(c0);
     float cbSimulationConstants_wallStiffness : packoffset(c0.y);
     float4 cbSimulationConstants_gravity : packoffset(c1);
     float3 cbSimulationConstants_planes[4] : packoffset(c2);
 };
+
 RWByteAddressBuffer particlesRW : register(u0);
 ByteAddressBuffer particlesRO : register(t0);
 ByteAddressBuffer particlesForcesRO : register(t2);

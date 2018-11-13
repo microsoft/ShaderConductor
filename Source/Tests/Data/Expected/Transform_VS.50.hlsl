@@ -1,7 +1,8 @@
-cbuffer cbVS : register(b0)
+cbuffer type_cbVS : register(b0)
 {
     column_major float4x4 cbVS_wvp : packoffset(c0);
 };
+
 
 static float4 gl_Position;
 static float4 in_var_POSITION;
