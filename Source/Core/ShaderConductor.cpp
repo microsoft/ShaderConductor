@@ -27,9 +27,8 @@
 
 #include <dxc/Support/Global.h>
 #include <dxc/Support/Unicode.h>
+#include <dxc/Support/WinAdapter.h>
 #include <dxc/Support/WinIncludes.h>
-
-#include <wrl.h>
 
 #include <algorithm>
 #include <atomic>
@@ -47,25 +46,10 @@
 
 #define SC_UNUSED(x) (void)(x);
 
-using namespace Microsoft::WRL;
 using namespace ShaderConductor;
 
 namespace
 {
-#ifndef _WIN32
-    using HMODULE = void*;
-#endif
-
-    extern "C" const GUID DECLSPEC_SELECTANY IID_IDxcCompiler = {
-        0x8c210bf3, 0x011f, 0x4422, { 0x8d, 0x70, 0x6f, 0x9a, 0xcb, 0x8d, 0xb6, 0x17 }
-    };
-    extern "C" const GUID DECLSPEC_SELECTANY IID_IDxcIncludeHandler = {
-        0x7f61fc7d, 0x950d, 0x467f, { 0xb3, 0xe3, 0x3c, 0x02, 0xfb, 0x49, 0x18, 0x7c }
-    };
-    extern "C" const GUID DECLSPEC_SELECTANY IID_IDxcLibrary = {
-        0xe5204dc7, 0xd18c, 0x4c3c, { 0xbd, 0xfb, 0x85, 0x16, 0x73, 0x98, 0x0f, 0xe7 }
-    };
-
     bool dllDetaching = false;
 
     class Dxcompiler
@@ -84,20 +68,20 @@ namespace
 
         IDxcLibrary* Library() const
         {
-            return m_library.Get();
+            return m_library;
         }
 
         IDxcCompiler* Compiler() const
         {
-            return m_compiler.Get();
+            return m_compiler;
         }
 
         void Destroy()
         {
             if (m_dxcompilerDll)
             {
-                m_compiler.Reset();
-                m_library.Reset();
+                m_compiler = nullptr;
+                m_library = nullptr;
 
                 m_createInstanceFunc = nullptr;
 
@@ -132,7 +116,13 @@ namespace
                 return;
             }
 
+#ifdef _WIN32
             const char* dllName = "dxcompiler.dll";
+#elif __APPLE__
+            const char* dllName = "libdxcompiler.dylib";
+#else
+            const char* dllName = "libdxcompiler.so";
+#endif
             const char* functionName = "DxcCreateInstance";
 
 #ifdef _WIN32
@@ -151,8 +141,8 @@ namespace
 
                 if (m_createInstanceFunc != nullptr)
                 {
-                    IFT(m_createInstanceFunc(CLSID_DxcLibrary, IID_IDxcLibrary, reinterpret_cast<void**>(m_library.GetAddressOf())));
-                    IFT(m_createInstanceFunc(CLSID_DxcCompiler, IID_IDxcCompiler, reinterpret_cast<void**>(m_compiler.GetAddressOf())));
+                    IFT(m_createInstanceFunc(CLSID_DxcLibrary, __uuidof(IDxcLibrary), reinterpret_cast<void**>(&m_library)));
+                    IFT(m_createInstanceFunc(CLSID_DxcCompiler, __uuidof(IDxcCompiler), reinterpret_cast<void**>(&m_compiler)));
                 }
                 else
                 {
@@ -171,8 +161,8 @@ namespace
         HMODULE m_dxcompilerDll = nullptr;
         DxcCreateInstanceProc m_createInstanceFunc = nullptr;
 
-        ComPtr<IDxcLibrary> m_library;
-        ComPtr<IDxcCompiler> m_compiler;
+        CComPtr<IDxcLibrary> m_library;
+        CComPtr<IDxcCompiler> m_compiler;
     };
 
     class ScIncludeHandler : public IDxcIncludeHandler
@@ -226,13 +216,13 @@ namespace
 
         HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** object) override
         {
-            if (IsEqualIID(iid, IID_IDxcIncludeHandler))
+            if (IsEqualIID(iid, __uuidof(IDxcIncludeHandler)))
             {
                 *object = dynamic_cast<IDxcIncludeHandler*>(this);
                 this->AddRef();
                 return S_OK;
             }
-            else if (IsEqualIID(iid, IID_IUnknown))
+            else if (IsEqualIID(iid, __uuidof(IUnknown)))
             {
                 *object = dynamic_cast<IUnknown*>(this);
                 this->AddRef();
@@ -341,9 +331,9 @@ namespace
             dxcDefines.push_back({ nameUtf16, valueUtf16 });
         }
 
-        ComPtr<IDxcBlobEncoding> sourceBlob;
+        CComPtr<IDxcBlobEncoding> sourceBlob;
         IFT(Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(
-            source.source.data(), static_cast<UINT32>(source.source.size()), CP_UTF8, sourceBlob.GetAddressOf()));
+            source.source.data(), static_cast<UINT32>(source.source.size()), CP_UTF8, &sourceBlob));
         IFTARG(sourceBlob->GetBufferSize() >= 4);
 
         std::wstring shaderNameUtf16;
@@ -382,12 +372,12 @@ namespace
             dxcArgs.push_back(arg.c_str());
         }
 
-        ComPtr<IDxcIncludeHandler> includeHandler = new ScIncludeHandler(std::move(source.loadIncludeCallback));
-        ComPtr<IDxcOperationResult> compileResult;
-        IFT(Dxcompiler::Instance().Compiler()->Compile(sourceBlob.Get(), shaderNameUtf16.c_str(), entryPointUtf16.c_str(),
+        CComPtr<IDxcIncludeHandler> includeHandler = new ScIncludeHandler(std::move(source.loadIncludeCallback));
+        CComPtr<IDxcOperationResult> compileResult;
+        IFT(Dxcompiler::Instance().Compiler()->Compile(sourceBlob, shaderNameUtf16.c_str(), entryPointUtf16.c_str(),
                                                        shaderProfile.c_str(), dxcArgs.data(), static_cast<UINT32>(dxcArgs.size()),
-                                                       dxcDefines.data(), static_cast<UINT32>(dxcDefines.size()), includeHandler.Get(),
-                                                       compileResult.GetAddressOf()));
+                                                       dxcDefines.data(), static_cast<UINT32>(dxcDefines.size()), includeHandler,
+                                                       &compileResult));
 
         HRESULT status;
         IFT(compileResult->GetStatus(&status));
@@ -396,20 +386,20 @@ namespace
 
         ret.isText = false;
 
-        ComPtr<IDxcBlobEncoding> errors;
-        IFT(compileResult->GetErrorBuffer(errors.GetAddressOf()));
+        CComPtr<IDxcBlobEncoding> errors;
+        IFT(compileResult->GetErrorBuffer(&errors));
         if (errors != nullptr)
         {
             ret.errorWarningMsg.assign(reinterpret_cast<const char*>(errors->GetBufferPointer()), errors->GetBufferSize());
-            errors.Reset();
+            errors = nullptr;
         }
 
         ret.hasError = true;
         if (SUCCEEDED(status))
         {
-            ComPtr<IDxcBlob> program;
-            IFT(compileResult->GetResult(program.GetAddressOf()));
-            compileResult.Reset();
+            CComPtr<IDxcBlob> program;
+            IFT(compileResult->GetResult(&program));
+            compileResult = nullptr;
             if (program != nullptr)
             {
                 const uint8_t* programPtr = reinterpret_cast<const uint8_t*>(program->GetBufferPointer());

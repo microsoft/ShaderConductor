@@ -1,0 +1,61 @@
+language: cpp
+
+git:
+  depth: 5
+  quiet: true
+
+cache:
+  apt: true
+
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: required
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-7
+            - ninja-build
+          update:
+            - true
+      env: MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+
+    - os: osx
+      osx_image: xcode9.3
+      addons:
+        homebrew:
+          packages:
+            - ninja
+          update:
+            - true
+      env: MATRIX_EVAL="CC=clang && CXX=clang++"
+
+    - os: osx
+      osx_image: xcode9.4
+      addons:
+        homebrew:
+          packages:
+            - ninja
+          update:
+            - true
+      env: MATRIX_EVAL="CC=clang && CXX=clang++"
+
+    - os: osx
+      osx_image: xcode10.1
+      addons:
+        homebrew:
+          packages:
+            - ninja
+          update:
+            - true
+      env: MATRIX_EVAL="CC=clang && CXX=clang++"
+
+before_install:
+  - eval "${MATRIX_EVAL}"
+
+script:
+  - python BuildAll.py ninja x64 Release
+  - ./Build/ninja-x64-Release/Bin/ShaderConductorTest

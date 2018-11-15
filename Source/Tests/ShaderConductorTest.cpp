@@ -40,7 +40,12 @@ namespace
     std::vector<uint8_t> LoadFile(const std::string& name, bool isText)
     {
         std::vector<uint8_t> ret;
-        std::ifstream file(name, std::ios_base::in | (isText ? 0 : std::ios_base::binary));
+        std::ios_base::openmode mode = std::ios_base::in;
+        if (!isText)
+        {
+            mode |= std::ios_base::binary;
+        }
+        std::ifstream file(name, mode);
         if (file)
         {
             file.seekg(0, std::ios::end);
@@ -93,9 +98,13 @@ namespace
             {
                 if (!actual.empty())
                 {
-                    std::ofstream actual_file(TEST_DATA_DIR "Result/" + compareName,
-                                              std::ios_base::out | (result.isText ? 0 : std::ios_base::binary));
-                    actual_file.write(reinterpret_cast<const char*>(actual.data()), actual.size());
+                    std::ios_base::openmode mode = std::ios_base::out;
+                    if (!result.isText)
+                    {
+                        mode |= std::ios_base::binary;
+                    }
+                    std::ofstream actualFile(TEST_DATA_DIR "Result/" + compareName, mode);
+                    actualFile.write(reinterpret_cast<const char*>(actual.data()), actual.size());
                 }
 
                 EXPECT_TRUE(false);
