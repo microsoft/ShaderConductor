@@ -151,6 +151,21 @@ namespace
 
     protected:
         std::vector<std::tuple<std::string, Compiler::SourceDesc, std::vector<std::tuple<bool, Compiler::TargetDesc>>>> m_combinations;
+
+        const std::vector<std::tuple<bool, Compiler::TargetDesc>> m_allTestTargets =
+        {
+            { true, { ShadingLanguage::Hlsl, "30" } },
+            { true, { ShadingLanguage::Hlsl, "40" } },
+            { true, { ShadingLanguage::Hlsl, "50" } },
+
+            { true, { ShadingLanguage::Glsl, "300" } },
+            { true, { ShadingLanguage::Glsl, "410" } },
+
+            { true, { ShadingLanguage::Essl, "300" } },
+            { true, { ShadingLanguage::Essl, "310" } },
+
+            { true, { ShadingLanguage::Msl } },
+        };
     };
 
     class VertexShaderTest : public TestBase
@@ -163,53 +178,17 @@ namespace
                 {
                     "Constant_VS",
                     { "", "", "VSMain", ShaderStage::VertexShader },
-                    {
-                        { true, { ShadingLanguage::Hlsl, "30" } },
-                        { true, { ShadingLanguage::Hlsl, "40" } },
-                        { true, { ShadingLanguage::Hlsl, "50" } },
-
-                        { true, { ShadingLanguage::Glsl, "300" } },
-                        { true, { ShadingLanguage::Glsl, "410" } },
-
-                        { true, { ShadingLanguage::Essl, "300" } },
-                        { true, { ShadingLanguage::Essl, "310" } },
-
-                        { true, { ShadingLanguage::Msl } },
-                    },
+                    m_allTestTargets,
                 },
                 {
                     "PassThrough_VS",
                     { "", "", "VSMain", ShaderStage::VertexShader },
-                    {
-                        { true, { ShadingLanguage::Hlsl, "30" } },
-                        { true, { ShadingLanguage::Hlsl, "40" } },
-                        { true, { ShadingLanguage::Hlsl, "50" } },
-
-                        { true, { ShadingLanguage::Glsl, "300" } },
-                        { true, { ShadingLanguage::Glsl, "410" } },
-
-                        { true, { ShadingLanguage::Essl, "300" } },
-                        { true, { ShadingLanguage::Essl, "310" } },
-
-                        { true, { ShadingLanguage::Msl } },
-                    },
+                    m_allTestTargets,
                 },
                 {
                     "Transform_VS",
                     { "", "", "", ShaderStage::VertexShader },
-                    {
-                        { true, { ShadingLanguage::Hlsl, "30" } },
-                        { true, { ShadingLanguage::Hlsl, "40" } },
-                        { true, { ShadingLanguage::Hlsl, "50" } },
-
-                        { true, { ShadingLanguage::Glsl, "300" } },
-                        { true, { ShadingLanguage::Glsl, "410" } },
-
-                        { true, { ShadingLanguage::Essl, "300" } },
-                        { true, { ShadingLanguage::Essl, "310" } },
-
-                        { true, { ShadingLanguage::Msl } },
-                    },
+                    m_allTestTargets,
                 },
             };
 
@@ -227,53 +206,17 @@ namespace
                 {
                     "Constant_PS",
                     { "", "", "PSMain", ShaderStage::PixelShader },
-                    {
-                        { true, { ShadingLanguage::Hlsl, "30" } },
-                        { true, { ShadingLanguage::Hlsl, "40" } },
-                        { true, { ShadingLanguage::Hlsl, "50" } },
-
-                        { true, { ShadingLanguage::Glsl, "300" } },
-                        { true, { ShadingLanguage::Glsl, "410" } },
-
-                        { true, { ShadingLanguage::Essl, "300" } },
-                        { true, { ShadingLanguage::Essl, "310" } },
-
-                        { true, { ShadingLanguage::Msl } },
-                    },
+                    m_allTestTargets,
                 },
                 {
                     "PassThrough_PS",
                     { "", "", "PSMain", ShaderStage::PixelShader },
-                    {
-                        { true, { ShadingLanguage::Hlsl, "30" } },
-                        { true, { ShadingLanguage::Hlsl, "40" } },
-                        { true, { ShadingLanguage::Hlsl, "50" } },
-
-                        { true, { ShadingLanguage::Glsl, "300" } },
-                        { true, { ShadingLanguage::Glsl, "410" } },
-
-                        { true, { ShadingLanguage::Essl, "300" } },
-                        { true, { ShadingLanguage::Essl, "310" } },
-
-                        { true, { ShadingLanguage::Msl } },
-                    },
+                    m_allTestTargets,
                 },
                 {
                     "ToneMapping_PS",
                     { "", "", "", ShaderStage::PixelShader },
-                    {
-                        { true, { ShadingLanguage::Hlsl, "30" } },
-                        { true, { ShadingLanguage::Hlsl, "40" } },
-                        { true, { ShadingLanguage::Hlsl, "50" } },
-
-                        { true, { ShadingLanguage::Glsl, "300" } },
-                        { true, { ShadingLanguage::Glsl, "410" } },
-
-                        { true, { ShadingLanguage::Essl, "300" } },
-                        { true, { ShadingLanguage::Essl, "310" } },
-
-                        { true, { ShadingLanguage::Msl } },
-                    },
+                    m_allTestTargets,
                 },
             };
 
@@ -293,8 +236,8 @@ namespace
                     { "", "", "", ShaderStage::GeometryShader, { { "FIXED_VERTEX_RADIUS", "5.0" } } },
                     {
                         { false, { ShadingLanguage::Hlsl, "30" } }, // No GS in HLSL SM3
-                        //{ false, { ShadingLanguage::Hlsl, "40" } }, // TODO Github #4: Unsupported execution model
-                        //{ false, { ShadingLanguage::Hlsl, "50" } }, // TODO Github #4: Unsupported execution model
+                        { false, { ShadingLanguage::Hlsl, "40" } }, // GS not supported yet
+                        { false, { ShadingLanguage::Hlsl, "50" } }, // GS not supported yet
 
                         { true, { ShadingLanguage::Glsl, "300" } },
                         { true, { ShadingLanguage::Glsl, "410" } },
@@ -324,7 +267,7 @@ namespace
                     {
                         { false, { ShadingLanguage::Hlsl, "30" } }, // No HS in HLSL SM3
                         { false, { ShadingLanguage::Hlsl, "40" } }, // No HS in HLSL SM4
-                        //{ false, { ShadingLanguage::Hlsl, "50" } }, // TODO Github #5: Unsupported builtin
+                        { false, { ShadingLanguage::Hlsl, "50" } }, // HS not supported yet
 
                         { true, { ShadingLanguage::Glsl, "300" } },
                         { true, { ShadingLanguage::Glsl, "410" } },
@@ -354,7 +297,7 @@ namespace
                     {
                         { false, { ShadingLanguage::Hlsl, "30" } }, // No HS in HLSL SM3
                         { false, { ShadingLanguage::Hlsl, "40" } }, // No HS in HLSL SM4
-                        //{ false, { ShadingLanguage::Hlsl, "50" } }, // TODO Github #5: Unsupported builtin
+                        { false, { ShadingLanguage::Hlsl, "50" } }, // DS not supported yet
 
                         { true, { ShadingLanguage::Glsl, "300" } },
                         { true, { ShadingLanguage::Glsl, "410" } },

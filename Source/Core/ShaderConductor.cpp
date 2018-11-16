@@ -439,6 +439,12 @@ namespace
         switch (target.language)
         {
         case ShadingLanguage::Hlsl:
+            if ((source.stage == ShaderStage::GeometryShader) || (source.stage == ShaderStage::HullShader) ||
+                (source.stage == ShaderStage::DomainShader))
+            {
+                // Check https://github.com/KhronosGroup/SPIRV-Cross/issues/121 for details
+                return AppendError(ret, "GS, HS, and DS has not been supported yet.");
+            }
             if ((source.stage == ShaderStage::GeometryShader) && (intVersion < 40))
             {
                 return AppendError(ret, "HLSL shader model earlier than 4.0 doesn't have GS or CS.");
