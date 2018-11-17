@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.9)
 project(ShaderConductor)
 
 set(SC_MAJOR_VERSION 0)
-set(SC_MINOR_VERSION 1)
+set(SC_MINOR_VERSION 2)
 set(SC_PATCH_VERSION 0)
 set(SC_VERSION ${SC_MAJOR_VERSION}.${SC_MINOR_VERSION}.${SC_PATCH_VERSION})
 
