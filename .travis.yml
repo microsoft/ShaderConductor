@@ -23,6 +23,22 @@ matrix:
             - true
       env: MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
 
+    - os: linux
+      dist: trusty
+      sudo: required
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - clang-6.0
+            - libstdc++-6-dev
+            - ninja-build
+          update:
+            - true
+      env: MATRIX_EVAL="CC=clang-6.0 && CXX=clang++-6.0"
+
     - os: osx
       osx_image: xcode9.3
       addons:
