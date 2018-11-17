@@ -5,12 +5,14 @@ clone_depth: 5
 platform:
   - x64
 
-environment:
-  matrix:
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-
 configuration:
   - Release
+
+environment:
+  ARTIFACTS_ZIP_NAME: ShaderConductor-win-%PLATFORM%-%CONFIGURATION%-artifacts.zip
+  BUILD_DIR: ninja-%PLATFORM%-%CONFIGURATION%
+  matrix:
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
 
 install:
   - mkdir c:\ninja && cd c:\ninja
@@ -23,4 +25,13 @@ build_script:
   - python BuildAll.py ninja %PLATFORM% %CONFIGURATION%
 
 test_script:
-  - Build\ninja-%PLATFORM%-%CONFIGURATION%\Bin\ShaderConductorTest.exe
+  - Build\%BUILD_DIR%\Bin\ShaderConductorTest.exe
+
+after_test:
+  - cd Build\%BUILD_DIR%
+  - echo %APPVEYOR_REPO_COMMIT% > GIT-COMMIT.txt
+  - xcopy "%APPVEYOR_BUILD_FOLDER%\Include\ShaderConductor" Include\ShaderConductor /s /i /y
+  - 7z a %ARTIFACTS_ZIP_NAME% Include Lib\ShaderConductor.lib Bin\ShaderConductor.dll Bin\ShaderConductorCmd.exe Bin\dxcompiler.dll GIT-COMMIT.txt
+
+artifacts:
+  - path: Build\%BUILD_DIR%\%ARTIFACTS_ZIP_NAME%
