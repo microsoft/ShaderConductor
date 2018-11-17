@@ -8,6 +8,7 @@ ColumnLimit: 140
 Cpp11BracedListStyle: false
 IndentWidth: 4
 Language: Cpp
+MaxEmptyLinesToKeep: 2
 NamespaceIndentation: All
 PointerAlignment: Left
 SpaceBeforeParens: ControlStatements

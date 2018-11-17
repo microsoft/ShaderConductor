@@ -70,7 +70,7 @@ namespace
     {
         static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl" };
         static_assert(sizeof(extMap) / sizeof(extMap[0]) == static_cast<uint32_t>(ShadingLanguage::NumShadingLanguages),
-            "extMap doesn't match with the number of shading languages.");
+                      "extMap doesn't match with the number of shading languages.");
 
         const auto result = Compiler::Compile(source, target);
 
@@ -152,6 +152,7 @@ namespace
     protected:
         std::vector<std::tuple<std::string, Compiler::SourceDesc, std::vector<std::tuple<bool, Compiler::TargetDesc>>>> m_combinations;
 
+        // clang-format off
         const std::vector<std::tuple<bool, Compiler::TargetDesc>> m_allTestTargets =
         {
             { true, { ShadingLanguage::Hlsl, "30" } },
@@ -166,6 +167,7 @@ namespace
 
             { true, { ShadingLanguage::Msl } },
         };
+        // clang-format on
     };
 
     class VertexShaderTest : public TestBase
@@ -173,6 +175,7 @@ namespace
     public:
         void SetUp() override
         {
+            // clang-format off
             m_combinations =
             {
                 {
@@ -191,6 +194,7 @@ namespace
                     m_allTestTargets,
                 },
             };
+            // clang-format on
 
             TestBase::SetUp();
         }
@@ -201,6 +205,7 @@ namespace
     public:
         void SetUp() override
         {
+            // clang-format off
             m_combinations =
             {
                 {
@@ -219,6 +224,7 @@ namespace
                     m_allTestTargets,
                 },
             };
+            // clang-format on
 
             TestBase::SetUp();
         }
@@ -229,6 +235,7 @@ namespace
     public:
         void SetUp() override
         {
+            // clang-format off
             m_combinations =
             {
                 {
@@ -249,6 +256,7 @@ namespace
                     },
                 },
             };
+            // clang-format on
 
             TestBase::SetUp();
         }
@@ -259,6 +267,7 @@ namespace
     public:
         void SetUp() override
         {
+            // clang-format off
             m_combinations =
             {
                 {
@@ -279,6 +288,7 @@ namespace
                     },
                 },
             };
+            // clang-format on
 
             TestBase::SetUp();
         }
@@ -289,6 +299,7 @@ namespace
     public:
         void SetUp() override
         {
+            // clang-format off
             m_combinations =
             {
                 {
@@ -309,6 +320,7 @@ namespace
                     },
                 },
             };
+            // clang-format on
 
             TestBase::SetUp();
         }
@@ -319,6 +331,7 @@ namespace
     public:
         void SetUp() override
         {
+            // clang-format off
             m_combinations =
             {
                 {
@@ -339,6 +352,7 @@ namespace
                     },
                 },
             };
+            // clang-format on
 
             TestBase::SetUp();
         }

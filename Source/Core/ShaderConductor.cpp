@@ -186,7 +186,7 @@ namespace
                 return E_FAIL;
             }
 
-            std::string source = m_loadCallback(utf8FileName);
+            const std::string source = m_loadCallback(utf8FileName);
             if (source.empty())
             {
                 return E_FAIL;
@@ -342,11 +342,13 @@ namespace
         std::wstring entryPointUtf16;
         Unicode::UTF8ToUTF16String(source.entryPoint.c_str(), &entryPointUtf16);
 
+        // clang-format off
         std::vector<std::wstring> dxcArgStrings =
         {
             L"-T", shaderProfile,
             L"-E", entryPointUtf16,
         };
+        // clang-format on
 
         switch (targetLanguage)
         {
@@ -374,10 +376,9 @@ namespace
 
         CComPtr<IDxcIncludeHandler> includeHandler = new ScIncludeHandler(std::move(source.loadIncludeCallback));
         CComPtr<IDxcOperationResult> compileResult;
-        IFT(Dxcompiler::Instance().Compiler()->Compile(sourceBlob, shaderNameUtf16.c_str(), entryPointUtf16.c_str(),
-                                                       shaderProfile.c_str(), dxcArgs.data(), static_cast<UINT32>(dxcArgs.size()),
-                                                       dxcDefines.data(), static_cast<UINT32>(dxcDefines.size()), includeHandler,
-                                                       &compileResult));
+        IFT(Dxcompiler::Instance().Compiler()->Compile(sourceBlob, shaderNameUtf16.c_str(), entryPointUtf16.c_str(), shaderProfile.c_str(),
+                                                       dxcArgs.data(), static_cast<UINT32>(dxcArgs.size()), dxcDefines.data(),
+                                                       static_cast<UINT32>(dxcDefines.size()), includeHandler, &compileResult));
 
         HRESULT status;
         IFT(compileResult->GetStatus(&status));
@@ -413,7 +414,7 @@ namespace
     }
 
     Compiler::ResultDesc ConvertBinary(const Compiler::ResultDesc& binaryResult, const Compiler::SourceDesc& source,
-                                          const Compiler::TargetDesc& target)
+                                       const Compiler::TargetDesc& target)
     {
         assert((target.language != ShadingLanguage::Dxil) && (target.language != ShadingLanguage::SpirV));
         assert((binaryResult.target.size() & (sizeof(uint32_t) - 1)) == 0);
