@@ -27,19 +27,18 @@ set_source_files_properties(${DATA_FILES}
 source_group("Source Files" FILES ${SOURCE_FILES})
 source_group("Data Files\\Input" FILES ${DATA_FILES})
 
-add_definitions(-DTEST_DATA_DIR="${SC_ROOT_DIR}/Source/Tests/Data/")
-
-include_directories(
-    ${SC_ROOT_DIR}/Include
-    ${SC_ROOT_DIR}/External/googletest/googletest/include
-)
-
 link_directories(
     ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
 )
 
 add_executable(${EXE_NAME} ${SOURCE_FILES} ${DATA_FILES})
 
+target_include_directories(${EXE_NAME} PRIVATE
+    ${SC_ROOT_DIR}/Include
+    ${SC_ROOT_DIR}/External/googletest/googletest/include
+)
+target_compile_definitions(${EXE_NAME} PRIVATE
+    -DTEST_DATA_DIR="${SC_ROOT_DIR}/Source/Tests/Data/")
 target_link_libraries(${EXE_NAME}
     ShaderConductor
     debug gtestd optimized gtest
