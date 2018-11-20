@@ -34,20 +34,23 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${SC_BUILD_DIR}/Lib)
 if((CMAKE_C_COMPILER_ID MATCHES GNU) OR (CMAKE_C_COMPILER_ID MATCHES Clang))
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1z")
 endif()
-if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+if (CMAKE_C_COMPILER_ID MATCHES Clang)
     foreach(flagVar
         CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
         set(${flagVar} "${${flagVar}} -fms-extensions -Wno-language-extension-token")
     endforeach()
 endif()
 
-set(Python_ADDITIONAL_VERSIONS 3.5 3.6 3.7)
+set(Python_ADDITIONAL_VERSIONS 3.5 3.6 3.7 3.8)
 
 # DirectXShaderCompiler requires it
 add_definitions(-D_ITERATOR_DEBUG_LEVEL=0)
 # Handle a compiling issue of SPIR-V
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+    if(CMAKE_C_COMPILER_ID MATCHES Clang)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+    endif()
 
     foreach(flagVar
         CMAKE_SHARED_LINKER_FLAGS_RELEASE CMAKE_SHARED_LINKER_FLAGS_MINSIZEREL

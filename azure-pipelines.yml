@@ -150,30 +150,6 @@ jobs:
   steps:
   - template: CI/AzurePipelines/ContinuousBuild.yml
 
-- job: Linux_clang6
-  pool:
-    vmImage: Ubuntu-16.04
-
-  variables:
-    compiler: clang6
-    combination: 'linux-$(compiler)-$(platform)-$(configuration)'
-    buildFolder: 'Build/ninja-$(combination)'
-    installCommand: |
-      sudo add-apt-repository ppa:llvm-toolchain-xenial-6.0/main
-      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-      sudo apt-get update
-      sudo apt-get install clang-6.0 libstdc++-6-dev lld-6.0 ninja-build python3
-    testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
-    artifactBinaries: |
-      Bin/ShaderConductorCmd
-      Lib/libdxcompiler.so
-      Lib/libShaderConductor.so
-    CC: clang-6.0
-    CXX: clang++-6.0
-
-  steps:
-  - template: CI/AzurePipelines/ContinuousBuild.yml
-
 - job: Linux_clang7
   pool:
     vmImage: Ubuntu-16.04
@@ -187,7 +163,7 @@ jobs:
       sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main"
       sudo add-apt-repository ppa:ubuntu-toolchain-r/test
       sudo apt-get update
-      sudo apt-get install clang-7 libstdc++-7-dev lld-7 ninja-build python3
+      sudo apt-get install clang-7 libc++-7-dev libc++abi-7-dev lld-7 ninja-build python3
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd
@@ -195,6 +171,31 @@ jobs:
       Lib/libShaderConductor.so
     CC: clang-7
     CXX: clang++-7
+
+  steps:
+  - template: CI/AzurePipelines/ContinuousBuild.yml
+
+- job: Linux_clang8
+  pool:
+    vmImage: Ubuntu-16.04
+
+  variables:
+    compiler: clang8
+    combination: 'linux-$(compiler)-$(platform)-$(configuration)'
+    buildFolder: 'Build/ninja-$(combination)'
+    installCommand: |
+      wget -O - http://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+      sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main"
+      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+      sudo apt-get update
+      sudo apt-get install clang-8 libc++-8-dev libc++abi-8-dev lld-8 ninja-build python3
+    testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
+    artifactBinaries: |
+      Bin/ShaderConductorCmd
+      Lib/libdxcompiler.so
+      Lib/libShaderConductor.so
+    CC: clang-8
+    CXX: clang++-8
 
   steps:
   - template: CI/AzurePipelines/ContinuousBuild.yml
