@@ -61,7 +61,20 @@ def FindVS2017Folder(programFilesFolder):
 				tryVcvarsall = "VCVARSALL.BAT"
 				if os.path.exists(tryFolder + tryVcvarsall):
 					return tryFolder
+	LogError("Could NOT find VS2017.\n")
 	return ""
+
+def FindVS2015Folder(programFilesFolder):
+	env = os.environ
+	if "VS140COMNTOOLS" in env:
+		return env["VS140COMNTOOLS"] + "..\\..\\VC\\"
+	else:
+		tryFolder = programFilesFolder + "\\Microsoft Visual Studio 14.0\\VC\\"
+		tryVcvarsall = "VCVARSALL.BAT"
+		if os.path.exists(tryFolder + tryVcvarsall):
+			return tryFolder
+		else:
+			LogError("Could NOT find VS2015.\n")
 
 class BatchCommand:
 	def __init__(self, hostPlatform):
@@ -100,7 +113,7 @@ if __name__ == "__main__":
 	elif 0 == hostPlatform.find("linux"):
 		hostPlatform = "linux"
 	elif 0 == hostPlatform.find("darwin"):
-		hostPlatform = "darwin"
+		hostPlatform = "osx"
 
 	argc = len(sys.argv);
 	if (argc > 1):
@@ -111,17 +124,26 @@ if __name__ == "__main__":
 		else:
 			buildSys = "ninja"
 	if (argc > 2):
-		arch = sys.argv[2]
+		compiler = sys.argv[2]
+	else:
+		if buildSys == "vs2017":
+			compiler = "vc141"
+		elif buildSys == "vs2015":
+			compiler = "vc140"
+		else:
+			compiler = "gcc"
+	if (argc > 3):
+		arch = sys.argv[3]
 	else:
 		arch = "x64"
-	if (argc > 3):
-		configuration = sys.argv[3]
+	if (argc > 4):
+		configuration = sys.argv[4]
 	else:
 		configuration = "Release"
 
 	multiConfig = (buildSys.find("vs") == 0)
 
-	buildDir = "Build/%s-%s" % (buildSys, arch)
+	buildDir = "Build/%s-%s-%s-%s" % (buildSys, compiler, hostPlatform, arch)
 	if not multiConfig:
 		buildDir += "-%s" % configuration;
 	if not os.path.exists(buildDir):
@@ -133,14 +155,22 @@ if __name__ == "__main__":
 
 	batCmd = BatchCommand(hostPlatform)
 	if hostPlatform == "win":
-		vs2017Folder = FindVS2017Folder(FindProgramFilesFolder())
+		programFilesFolder = FindProgramFilesFolder()
+		if (buildSys == "vs2017") or ((buildSys == "ninja") and (compiler == "vc141")):
+			vsFolder = FindVS2017Folder(programFilesFolder)
+		elif (buildSys == "vs2015") or ((buildSys == "ninja") and (compiler == "vc140")):
+			vsFolder = FindVS2015Folder(programFilesFolder)
 		if "x64" == arch:
 			vcOption = "amd64"
 		elif "x86" == arch:
 			vcOption = "x86"
 		else:
 			LogError("Unsupported architecture.\n")
-		batCmd.AddCommand("@call \"%sVCVARSALL.BAT\" %s" % (vs2017Folder, vcOption))
+		vcToolset = ""
+		if (buildSys == "vs2017") and (compiler == "vc140"):
+			vcOption += " -vcvars_ver=14.0"
+			vcToolset = "v140,"
+		batCmd.AddCommand("@call \"%sVCVARSALL.BAT\" %s" % (vsFolder, vcOption))
 		batCmd.AddCommand("@cd /d \"%s\"" % buildDir)
 	if (buildSys == "ninja"):
 		if hostPlatform == "win":
@@ -149,7 +179,11 @@ if __name__ == "__main__":
 		batCmd.AddCommand("cmake -G Ninja -DCMAKE_BUILD_TYPE=\"%s\" -DSC_ARCH_NAME=\"%s\" ../../" % (configuration, arch))
 		batCmd.AddCommand("ninja -j%d" % parallel)
 	else:
-		batCmd.AddCommand("cmake -G \"Visual Studio 15\" -T host=x64 -A %s ../../" % arch)
+		if buildSys == "vs2017":
+			generator = "\"Visual Studio 15\""
+		elif buildSys == "vs2015":
+			generator = "\"Visual Studio 14\""
+		batCmd.AddCommand("cmake -G %s -T %shost=x64 -A %s ../../" % (generator, vcToolset, arch))
 		batCmd.AddCommand("MSBuild ALL_BUILD.vcxproj /nologo /m:%d /v:m /p:Configuration=%s,Platform=%s" % (parallel, configuration, arch))
 	if batCmd.Execute() != 0:
 		LogError("Build failed.\n")

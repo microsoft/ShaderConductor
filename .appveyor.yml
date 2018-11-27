@@ -9,10 +9,13 @@ configuration:
   - Release
 
 environment:
-  ARTIFACTS_ZIP_NAME: ShaderConductor-win-%PLATFORM%-%CONFIGURATION%-artifacts.zip
-  BUILD_DIR: ninja-%PLATFORM%-%CONFIGURATION%
+  ARTIFACTS_ZIP_NAME: ShaderConductor-%COMPILER%-win-%PLATFORM%-%CONFIGURATION%-artifacts.zip
+  BUILD_DIR: ninja-%COMPILER%-win-%PLATFORM%-%CONFIGURATION%
   matrix:
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+      COMPILER: vc140
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+      COMPILER: vc141
 
 install:
   - mkdir c:\ninja && cd c:\ninja
@@ -22,7 +25,7 @@ install:
 
 build_script:
   - cd %APPVEYOR_BUILD_FOLDER%
-  - python BuildAll.py ninja %PLATFORM% %CONFIGURATION%
+  - python BuildAll.py ninja %COMPILER% %PLATFORM% %CONFIGURATION%
 
 test_script:
   - Build\%BUILD_DIR%\Bin\ShaderConductorTest.exe

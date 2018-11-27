@@ -21,7 +21,7 @@ matrix:
             - ninja-build
           update:
             - true
-      env: MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+      env: MATRIX_EVAL="CC=gcc-7 && CXX=g++-7" COMPILER="gcc"
 
     - os: linux
       dist: trusty
@@ -37,7 +37,7 @@ matrix:
             - ninja-build
           update:
             - true
-      env: MATRIX_EVAL="CC=clang-6.0 && CXX=clang++-6.0"
+      env: MATRIX_EVAL="CC=clang-6.0 && CXX=clang++-6.0" COMPILER="clang"
 
     - os: osx
       osx_image: xcode9.3
@@ -47,7 +47,7 @@ matrix:
             - ninja
           update:
             - true
-      env: MATRIX_EVAL="CC=clang && CXX=clang++"
+      env: MATRIX_EVAL="CC=clang && CXX=clang++" COMPILER="clang"
 
     - os: osx
       osx_image: xcode9.4
@@ -57,7 +57,7 @@ matrix:
             - ninja
           update:
             - true
-      env: MATRIX_EVAL="CC=clang && CXX=clang++"
+      env: MATRIX_EVAL="CC=clang && CXX=clang++" COMPILER="clang"
 
     - os: osx
       osx_image: xcode10.1
@@ -67,11 +67,11 @@ matrix:
             - ninja
           update:
             - true
-      env: MATRIX_EVAL="CC=clang && CXX=clang++"
+      env: MATRIX_EVAL="CC=clang && CXX=clang++" COMPILER="clang"
 
 before_install:
   - eval "${MATRIX_EVAL}"
 
 script:
-  - python BuildAll.py ninja x64 Release
-  - ./Build/ninja-x64-Release/Bin/ShaderConductorTest
+  - python BuildAll.py ninja $COMPILER x64 Release
+  - ./Build/ninja-$COMPILER-$TRAVIS_OS_NAME-x64-Release/Bin/ShaderConductorTest

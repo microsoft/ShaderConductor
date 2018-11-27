@@ -31,23 +31,23 @@ ShaderConductor is not a real compiler. Instead, it glues existing open source c
 * [Visual Studio 2017](https://www.visualstudio.com/downloads). Select the following workloads: Universal Windows Platform Development and Desktop Development with C++.
 * [CMake](https://www.cmake.org/download/). Version 3.9 or up. It's highly recommended to choose "Add CMake to the system PATH for all users" during installation.
 * [Python](https://www.python.org/downloads/). Version 2.7 or up. You need not change your PATH variable during installation.
-* (Optional) [Windows Driver Kit](https://docs.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk). DirectXShaderCompiler's tests are built using the TAEF framework. Unless you have the Windows Driver Kit installed, you should run the script at `External\DirectXShaderCompiler\utils\hct\hctgettaef.py` from your build environment before you start building to download and unzip it as an external dependency. You should only need to do this once.
 
 ## Building
 
-ShaderConductor has been tested on Windows. Linux and macOS support are coming soon.
+ShaderConductor has been tested on Windows, Linux, and macOS.
 
 ### The script way:
 
 ```
-  BuildAll.py <BuildSystem> <Architecture> <Configuration>
+  BuildAll.py <BuildSystem> <Compiler> <Architecture> <Configuration>
 ```
 where,
 * \<BuildSystem\> can be ninja or vs2017. Default is vs2017.
-* \<Architecture\> can be x64 or x86. Default is x64.
+* \<Compiler\> can be vc141 on Windows, gcc or clang on Linux, clang on macOS.
+* \<Architecture\> must be x64 (for now).
 * \<Configuration\> can be Debug, Release, RelWithDebInfo, or MinSizeRel. Default is Release.
  
-This script automatically grabs external dependencies to External folder, generates project file in Build/<BuildSystem>-<Platform>-<Configuration>, and builds it.
+This script automatically grabs external dependencies to External folder, generates project file in Build/\<BuildSystem\>-\<Compiler\>-\<Platform\>-\<Architecture\>[-\<Configuration\>], and builds it.
 
 ### The manual way:
 

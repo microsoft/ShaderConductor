@@ -94,7 +94,7 @@ namespace ShaderConductor
         {
             std::string source;
             std::string fileName;
-            std::string entryPoint = "main";
+            std::string entryPoint;
             ShaderStage stage;
             std::vector<MacroDefine> defines;
             std::function<std::string(const std::string& includeName)> loadIncludeCallback;
