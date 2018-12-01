@@ -143,7 +143,7 @@ if __name__ == "__main__":
 
 	multiConfig = (buildSys.find("vs") == 0)
 
-	buildDir = "Build/%s-%s-%s-%s" % (buildSys, compiler, hostPlatform, arch)
+	buildDir = "Build/%s-%s-%s-%s" % (buildSys, hostPlatform, compiler, arch)
 	if not multiConfig:
 		buildDir += "-%s" % configuration;
 	if not os.path.exists(buildDir):

@@ -94,4 +94,4 @@ before_install:
 
 script:
   - python BuildAll.py ninja $COMPILER x64 Release
-  - ./Build/ninja-$COMPILER-$TRAVIS_OS_NAME-x64-Release/Bin/ShaderConductorTest
+  - ./Build/ninja-$TRAVIS_OS_NAME-$COMPILER-x64-Release/Bin/ShaderConductorTest
