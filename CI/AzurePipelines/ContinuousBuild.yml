@@ -1,0 +1,34 @@
+steps:
+- bash: eval '$(installCommand)'
+  displayName: 'Install'
+
+- task: PythonScript@0
+  displayName: 'Build'
+  inputs:
+    scriptPath: BuildAll.py
+    arguments: 'ninja $(compiler) $(platform) $(configuration)'
+
+- bash: eval '$(testCommand)'
+  displayName: 'Test'
+
+- bash: 'echo $BUILD_SOURCEVERSION > $BUILD_ARTIFACTSTAGINGDIRECTORY/GIT-COMMIT.txt'
+  displayName: 'Add commit info'
+
+- task: CopyFiles@2
+  displayName: 'Copy Headers'
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)'
+    Contents: Include/ShaderConductor/ShaderConductor.hpp
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+- task: CopyFiles@2
+  displayName: 'Copy Binaries'
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)/$(buildFolder)'
+    Contents: $(artifactBinaries)
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    pathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    artifactName: ShaderConductor-$(combination)
