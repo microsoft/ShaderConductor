@@ -4,19 +4,22 @@
 if(WIN32)
     set(dxcompilerName "dxcompiler.dll")
     set(runtimeOutputFolder "bin")
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set(dxcompilerName "libdxcompiler.dylib")
-    set(runtimeOutputFolder "lib")
+    set(copyTargetFolder ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 else()
-    set(dxcompilerName "libdxcompiler.so")
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(dxcompilerName "libdxcompiler.dylib")
+    else()
+        set(dxcompilerName "libdxcompiler.so")
+    endif()
     set(runtimeOutputFolder "lib")
+    set(copyTargetFolder ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 endif()
 
-set(dxcompilerOutput "${SC_BUILD_DIR}/Bin/${CMAKE_CFG_INTDIR}/${dxcompilerName}")
+set(dxcompilerOutput "${copyTargetFolder}/${CMAKE_CFG_INTDIR}/${dxcompilerName}")
 add_custom_command(OUTPUT ${dxcompilerOutput}
     COMMAND ${CMAKE_COMMAND} -E copy
         ${SC_BUILD_DIR}/External/DirectXShaderCompiler/${CMAKE_CFG_INTDIR}/${runtimeOutputFolder}/${dxcompilerName}
-        ${SC_BUILD_DIR}/Bin/${CMAKE_CFG_INTDIR}/${dxcompilerName}
+        ${dxcompilerOutput}
     COMMENT "Copying dxcompiler...")
 add_custom_target(CopyDxcompiler DEPENDS ${dxcompilerOutput})
 add_dependencies(CopyDxcompiler dxcompiler)
