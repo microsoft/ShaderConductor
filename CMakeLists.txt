@@ -3,7 +3,11 @@
 
 cmake_minimum_required(VERSION 3.9)
 
-project(ShaderConductor)
+set (PROJECT_NAME ShaderConductor)
+
+project(${PROJECT_NAME})
+project(${PROJECT_NAME} LANGUAGES CSharp)
+set(CMAKE_CSharp_FLAGS "/langversion:7")
 
 set(SC_MAJOR_VERSION 0)
 set(SC_MINOR_VERSION 2)
