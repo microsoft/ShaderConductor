@@ -3,13 +3,18 @@
 
 cmake_minimum_required(VERSION 3.9)
 
-set(PROJECT_NAME ShaderConductor)
-
-project(${PROJECT_NAME})
-if(WIN32)
-    project(${PROJECT_NAME} LANGUAGES CSharp)
+if(WIN32 AND (${CMAKE_GENERATOR} MATCHES "Visual Studio ([^9]|[9][0-9])"))
+    set(SC_WITH_CSHARP ON)
+else()
+    set(SC_WITH_CSHARP OFF)
 endif()
-set(CMAKE_CSharp_FLAGS "/langversion:7")
+
+set(PROJECT_NAME ShaderConductor)
+project(${PROJECT_NAME})
+if(SC_WITH_CSHARP)
+    project(${PROJECT_NAME} LANGUAGES CSharp)
+    set(CMAKE_CSharp_FLAGS "/langversion:7")
+endif()
 
 set(SC_MAJOR_VERSION 0)
 set(SC_MINOR_VERSION 2)
