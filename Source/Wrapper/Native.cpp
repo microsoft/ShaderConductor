@@ -8,7 +8,7 @@
 using namespace ShaderConductor;
 
 void Compile(SourceDescription* source, TargetDescription* target, ResultDescription* result)
-{    
+{
     Compiler::SourceDesc sourceDesc;
     sourceDesc.entryPoint = source->entryPoint;
     sourceDesc.source = source->source;
@@ -19,38 +19,38 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
     targetDesc.version = target->version;
 
     try
-    {
+    {       
         const auto translation = Compiler::Compile(std::move(sourceDesc), std::move(targetDesc));
 
         if (!translation.errorWarningMsg.empty())
         {
-            const char* errorData = translation.errorWarningMsg.c_str();
+            const char* errorData = translation.errorWarningMsg.c_str();  
 
             const size_t errorDataLen = strlen(errorData);
-            result->errorWarningMsg = new char[errorDataLen + 1]();
-            std::strncpy(result->errorWarningMsg, errorData, errorDataLen);
+            result->errorWarningMsg = new char[errorDataLen + 1]();            
+            strncpy_s(result->errorWarningMsg, errorDataLen, errorData, errorDataLen);
         }
         if (!translation.target.empty())
         {
-            const char* targetData = reinterpret_cast<const char*>(translation.target.data());					
-			
+            const char* targetData = reinterpret_cast<const char*>(translation.target.data());
+
             const size_t targetDataLength = translation.target.size();
-            result->targetSize = targetDataLength;
-            result->target = new char[targetDataLength + 1]();
-            std::strncpy(result->target, targetData, targetDataLength);
+            result->targetSize = static_cast<int>(targetDataLength);
+            result->target = new char[targetDataLength + 1]();            
+            strncpy_s(result->target, targetDataLength + 1, targetData, targetDataLength);
         }
-		
+
         result->hasError = translation.hasError;
         result->isText = translation.isText;
     }
     catch (std::exception& ex)
     {
         const char* exception = ex.what();
-				
-		const size_t exceptionLength = strlen(exception);
-        result->errorWarningMsg = new char[exceptionLength + 1]();
-        std::strncpy(result->errorWarningMsg, exception, exceptionLength);
+		
+        const size_t exceptionLength = strlen(exception);
+        result->errorWarningMsg = new char[exceptionLength + 1]();        
+        strncpy_s(result->errorWarningMsg, exceptionLength + 1, exception, exceptionLength);
 
-		result->hasError = true;
+        result->hasError = true;
     }
 }
