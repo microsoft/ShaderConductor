@@ -24,17 +24,25 @@ namespace CSharpConsole
             };
 
             Wrapper.Compile(ref sourceDesc, ref targetDesc, out Wrapper.ResultDesc result);
-            string translate = Marshal.PtrToStringAnsi(result.target);
-            string warning = Marshal.PtrToStringAnsi(result.errorWarningMsg);
 
-            Console.WriteLine("*************************\n" +
-                              "**  GLSL translation   **\n" +
-                              "*************************\n");
-            Console.WriteLine(translate);
-            Console.WriteLine("*************************\n"+
-                              "**  Error output       **\n"+
-                              "*************************\n");
-            Console.WriteLine(warning);
+            if (result.isText)
+            {
+                string translate = Marshal.PtrToStringAnsi(result.target);
+
+                Console.WriteLine("*************************\n" +
+                                  "**  GLSL translation   **\n" +
+                                  "*************************\n");
+                Console.WriteLine(translate);
+            }            
+
+            if (result.hasError)
+            {
+                string warning = Marshal.PtrToStringAnsi(result.errorWarningMsg);
+                Console.WriteLine("*************************\n" +
+                                  "**  Error output       **\n" +
+                                  "*************************\n");
+                Console.WriteLine(warning);
+            }
 
             Console.Read();
         }

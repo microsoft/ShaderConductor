@@ -62,8 +62,10 @@ namespace CSharpConsole
         [StructLayout(LayoutKind.Sequential)]
         public struct ResultDesc
         {
-            public bool hasError;
+            public bool isText;
             public IntPtr target;
+            public int targetSize;
+            public bool hasError;
             public IntPtr errorWarningMsg;            
         }
     }

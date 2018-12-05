@@ -18,8 +18,10 @@ struct TargetDescription
 
  struct ResultDescription
 {   
-    bool hasError;
+    bool isText;
     char* target;
+    int targetSize;
+    bool hasError;
     char* errorWarningMsg;
 };
 

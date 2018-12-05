@@ -35,11 +35,13 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
             const char* targetData = reinterpret_cast<const char*>(translation.target.data());					
 			
             const size_t targetDataLength = translation.target.size();
+            result->targetSize = targetDataLength;
             result->target = new char[targetDataLength + 1]();
             std::strncpy(result->target, targetData, targetDataLength);
         }
-
+		
         result->hasError = translation.hasError;
+        result->isText = translation.isText;
     }
     catch (std::exception& ex)
     {
@@ -48,5 +50,7 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
 		const size_t exceptionLength = strlen(exception);
         result->errorWarningMsg = new char[exceptionLength + 1]();
         std::strncpy(result->errorWarningMsg, exception, exceptionLength);
+
+		result->hasError = true;
     }
 }
