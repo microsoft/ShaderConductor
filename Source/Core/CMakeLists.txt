@@ -16,12 +16,11 @@ else()
 endif()
 
 set(dxcompilerOutput "${copyTargetFolder}/${CMAKE_CFG_INTDIR}/${dxcompilerName}")
-add_custom_command(OUTPUT ${dxcompilerOutput}
+add_custom_target(CopyDxcompiler ALL
     COMMAND ${CMAKE_COMMAND} -E copy
         ${SC_BUILD_DIR}/External/DirectXShaderCompiler/${CMAKE_CFG_INTDIR}/${runtimeOutputFolder}/${dxcompilerName}
         ${dxcompilerOutput}
     COMMENT "Copying dxcompiler...")
-add_custom_target(CopyDxcompiler DEPENDS ${dxcompilerOutput})
 add_dependencies(CopyDxcompiler dxcompiler)
 
 set_target_properties(CopyDxcompiler PROPERTIES FOLDER "Core")
