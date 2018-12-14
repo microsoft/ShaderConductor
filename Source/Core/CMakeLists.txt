@@ -48,16 +48,18 @@ target_include_directories(${LIB_NAME}
     PRIVATE ${SC_BUILD_DIR}/External/DirectXShaderCompiler/include
     PRIVATE ${SC_ROOT_DIR}/External/DirectXShaderCompiler/include
     PRIVATE ${SC_ROOT_DIR}/External/SPIRV-Cross
+    PRIVATE ${SC_ROOT_DIR}/External/SPIRV-Tools/include
 )
 target_compile_definitions(${LIB_NAME} PRIVATE
     -DSHADER_CONDUCTOR_SOURCE -DDBG -DSUPPORT_QUERY_GIT_COMMIT_INFO -DENABLE_SPIRV_CODEGEN
     -D_CRT_SECURE_NO_DEPRECATE -D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_DEPRECATE -D_SCL_SECURE_NO_WARNINGS)
 target_link_libraries(${LIB_NAME}
     dxcompiler LLVMDxcSupport LLVMSupport
-    spirv-cross-core spirv-cross-glsl spirv-cross-hlsl spirv-cross-msl
+    spirv-cross-core spirv-cross-glsl spirv-cross-hlsl spirv-cross-msl SPIRV-Tools
 )
 
 add_dependencies(${LIB_NAME} spirv-cross-core spirv-cross-glsl spirv-cross-hlsl spirv-cross-msl)
 add_dependencies(${LIB_NAME} CopyDxcompiler)
+add_dependencies(${LIB_NAME} SPIRV-Tools)
 
 set_target_properties(${LIB_NAME} PROPERTIES FOLDER "Core")

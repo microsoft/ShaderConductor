@@ -82,6 +82,7 @@ namespace CSharpConsole
         {
             public ShadingLanguage language;
             public string version;
+            public bool disassemble;
         }
 
         [StructLayout(LayoutKind.Sequential)]

@@ -37,15 +37,17 @@ namespace CSharpConsole
 
             Wrapper.SourceDesc sourceDesc = new Wrapper.SourceDesc()
             {
-                entryPoint = "VS",
-                stage = Wrapper.ShaderStage.VertexShader,
+                entryPoint = "PS",
+
+                stage = Wrapper.ShaderStage.PixelShader,
                 source = source,
             };
 
             Wrapper.TargetDesc targetDesc = new Wrapper.TargetDesc()
             {
-                language = Wrapper.ShadingLanguage.Glsl,
-                version = "450",
+                language = Wrapper.ShadingLanguage.SpirV,
+                version = "460",
+                disassemble = true,
             };
 
             Wrapper.Compile(ref sourceDesc, ref targetDesc, out Wrapper.ResultDesc result);

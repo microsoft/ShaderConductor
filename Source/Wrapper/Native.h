@@ -40,6 +40,7 @@ struct TargetDescription
 {
     ShadingLanguage shadingLanguage;
     const char* version;
+    bool disassemble;
 };
 
 struct ResultDescription

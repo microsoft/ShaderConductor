@@ -48,7 +48,9 @@ int main(int argc, char** argv)
         ("I,input", "Input file name", cxxopts::value<std::string>())("O,output", "Output file name", cxxopts::value<std::string>())
         ("S,stage", "Shader stage: vs, ps, gs, hs, ds, cs", cxxopts::value<std::string>())
         ("T,target", "Target shading language: dxil, spirv, hlsl, glsl, essl, msl", cxxopts::value<std::string>()->default_value("dxil"))
+		("D,disassemble", "Disassemble target shading language (SPIRV and DXIL)", cxxopts::value<bool>()->default_value("false"))
         ("V,version", "The version of target shading language", cxxopts::value<std::string>()->default_value(""));
+
     // clang-format on
 
     auto opts = options.parse(argc, argv);
@@ -67,6 +69,7 @@ int main(int argc, char** argv)
 
     sourceDesc.fileName = opts["input"].as<std::string>();
     const auto targetName = opts["target"].as<std::string>();
+    targetDesc.disassemble = opts["disassemble"].as<bool>();
     targetDesc.version = opts["version"].as<std::string>();
 
     const auto stageName = opts["stage"].as<std::string>();

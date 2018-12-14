@@ -38,6 +38,7 @@
 #include <dxc/dxcapi.h>
 #include <llvm/Support/ErrorHandling.h>
 
+#include "spirv-tools/libspirv.h"
 #include <spirv.hpp>
 #include <spirv_cross.hpp>
 #include <spirv_glsl.hpp>
@@ -413,6 +414,42 @@ namespace
         return ret;
     }
 
+    Compiler::ResultDesc DisassembleBinary(const Compiler::ResultDesc& binaryResult)
+    {
+        assert((binaryResult.target.size() & (sizeof(uint32_t) - 1)) == 0);
+
+        Compiler::ResultDesc ret;
+        ret.errorWarningMsg = binaryResult.errorWarningMsg;
+        ret.isText = true;
+
+        const uint32_t* spirvIr = reinterpret_cast<const uint32_t*>(binaryResult.target.data());
+        const size_t spirvSize = binaryResult.target.size() / sizeof(uint32_t);
+
+        spv_context context = spvContextCreate(SPV_ENV_UNIVERSAL_1_3);
+        uint32_t options = SPV_BINARY_TO_TEXT_OPTION_NONE | SPV_BINARY_TO_TEXT_OPTION_INDENT | SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES;
+        spv_text text = nullptr;
+        spv_diagnostic diagnostic = nullptr;
+
+        spv_result_t error = spvBinaryToText(context, spirvIr, spirvSize, options, &text, &diagnostic);
+        spvContextDestroy(context);
+
+        if (error)
+        {
+            ret.errorWarningMsg = diagnostic->error;
+            ret.hasError = true;
+            spvDiagnosticDestroy(diagnostic);
+        }
+        else
+        {
+            std::string disassemble = std::string(text->str);
+            ret.target.assign(disassemble.begin(), disassemble.end());
+            ret.hasError = false;
+        }
+
+        spvTextDestroy(text);
+        return ret;
+    }
+
     Compiler::ResultDesc ConvertBinary(const Compiler::ResultDesc& binaryResult, const Compiler::SourceDesc& source,
                                        const Compiler::TargetDesc& target)
     {
@@ -607,6 +644,7 @@ namespace
 
         return ret;
     }
+
 } // namespace
 
 namespace ShaderConductor
@@ -625,13 +663,21 @@ namespace ShaderConductor
         const auto binaryLanguage = target.language == ShadingLanguage::Dxil ? ShadingLanguage::Dxil : ShadingLanguage::SpirV;
         auto ret = CompileToBinary(source, binaryLanguage);
 
-        if (!ret.hasError && (target.language != binaryLanguage))
+        if (!ret.hasError)
         {
-            ret = ConvertBinary(ret, source, target);
+            if (target.language != binaryLanguage)
+            {
+                ret = ConvertBinary(ret, source, target);
+            }
+            else if (target.disassemble)
+            {
+                ret = DisassembleBinary(ret);
+            }
         }
 
         return ret;
     }
+
 } // namespace ShaderConductor
 
 #ifdef _WIN32

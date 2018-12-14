@@ -104,6 +104,7 @@ namespace ShaderConductor
         {
             ShadingLanguage language;
             std::string version;
+            bool disassemble;
         };
 
         struct ResultDesc

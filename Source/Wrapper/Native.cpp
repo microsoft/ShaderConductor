@@ -57,6 +57,7 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
     Compiler::TargetDesc targetDesc;
     targetDesc.language = target->shadingLanguage;
     targetDesc.version = target->version;
+    targetDesc.disassemble = target->disassemble;
 
     try
     {
