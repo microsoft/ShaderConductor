@@ -3,8 +3,8 @@
 
 set(cxxopts_REV "3f2d70530219e09fe7e563f86126b0d3b228a60d")
 set(googletest_REV "440527a61e1c91188195f7de212c63c77e8f0a45")
-set(SPIRV_Headers_REV "d5b2e1255f706ce1f88812217e9a554f299848af")
-set(SPIRV_Tools_REV "5bc30788fd8acf1c73b2a33f4b5fea371b6c9094")
+set(SPIRV_Headers_REV "bbf63435c37aafac5d1cdfc287401d87cd3ca364")
+set(SPIRV_Tools_REV "c512c6864080ff617afb422a3d04dd902809a6cf")
 set(DirectXShaderCompiler_REV "ac18ec5819a79966b0061794f7ae6bdf4556e728")
 set(SPIRV_Cross_REV "f734d78c1536b9c786bd54ab6a30caa4f8cb0bff")
 
