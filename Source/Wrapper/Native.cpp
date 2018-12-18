@@ -25,25 +25,18 @@
 
 #include "Native.h"
 #include <ShaderConductor/ShaderConductor.hpp>
+#include <iostream>
 
 using namespace ShaderConductor;
 
-char* CopyString(const char* source, int length = -1)
+char* CopyString(const char* source)
 {
-    size_t sourceLength;
-    if (length < 0)
-    {
-        sourceLength = strlen(source);
-    }
-    else
-    {
-        sourceLength = length;
-    }
+    size_t sourceLength = strlen(source);
+    
+    msgArray = new char[sourceLength + 1];
+    strncpy_s(msgArray, sourceLength + 1, source, sourceLength);
 
-    char* result = new char[sourceLength + 1];
-    strncpy_s(result, sourceLength + 1, source, sourceLength);
-
-    return result;
+    return msgArray;
 }
 
 void Compile(SourceDescription* source, TargetDescription* target, ResultDescription* result)
@@ -67,28 +60,16 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
             result->errorWarningMsg = CopyString(errorData);
         }
         if (!translation.target.empty())
-        {            
-			/*if (translation.isText)
-			{
-				const char* targetData = reinterpret_cast<const char*>(translation.target.data());
-				result->targetSize = static_cast<int>(translation.target.size());
-				result->target = CopyString(targetData, result->targetSize);	
-			}
-			else
-			{*/
-				result->targetSize = translation.target.size();				
-				char* myArray = new char[result->targetSize];
-				for (int i = 0; i < result->targetSize; i++)
-				{
-                    myArray[i] = translation.target[i];
-				}
-				
-				result->target = myArray;               
-			////}
+        {
+            result->targetSize = translation.target.size();
+            binaryArray = new char[result->targetSize];
+            std::copy(translation.target.data(), translation.target.data() + result->targetSize, binaryArray);
+
+            result->target = binaryArray;
         }
 
         result->hasError = translation.hasError;
-        result->isText = translation.isText;	
+        result->isText = translation.isText;
     }
     catch (std::exception& ex)
     {
@@ -102,20 +83,22 @@ void Disassemble(DisassembleDescription* source, ResultDescription* result)
 {
     Compiler::DisassembleDesc disasembleSource;
     disasembleSource.language = source->language;
-	disasembleSource.binary = std::vector<uint8_t>(source->binary, source->binary + source->binarySize);    	
+    disasembleSource.binary = std::vector<uint8_t>(source->binary, source->binary + source->binarySize);
 
-    const auto disassembleResult = Compiler::Disassemble(disasembleSource);	
+    const auto disassembleResult = Compiler::Disassemble(disasembleSource);
 
-	if (!disassembleResult.errorWarningMsg.empty())
+    if (!disassembleResult.errorWarningMsg.empty())
     {
         const char* errorData = disassembleResult.errorWarningMsg.c_str();
         result->errorWarningMsg = CopyString(errorData);
     }
     if (!disassembleResult.target.empty())
     {
-        const char* targetData = reinterpret_cast<const char*>(disassembleResult.target.data());
-        result->targetSize = static_cast<int>(disassembleResult.target.size());
-        result->target = CopyString(targetData, result->targetSize);
+        result->targetSize = disassembleResult.target.size();
+        binaryArray = new char[result->targetSize];
+        std::copy(disassembleResult.target.data(), disassembleResult.target.data() + result->targetSize, binaryArray);
+
+        result->target = binaryArray;      
     }
 
     result->hasError = disassembleResult.hasError;
@@ -124,4 +107,6 @@ void Disassemble(DisassembleDescription* source, ResultDescription* result)
 
 void FreeResources()
 {
+    delete[] binaryArray;
+    delete[] msgArray;
 }

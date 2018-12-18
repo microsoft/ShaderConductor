@@ -69,11 +69,11 @@ namespace CSharpConsole
                 string translation = Marshal.PtrToStringAnsi(result.target, result.targetSize);
 
                 Console.WriteLine("*************************\n" +
-                                  "**  Translation   **\n" +
+                                  "**  Translation        **\n" +
                                   "*************************\n");
                 Console.WriteLine(translation);
             }
-           
+
             if (result.hasError)
             {
                 string warning = Marshal.PtrToStringAnsi(result.errorWarningMsg);

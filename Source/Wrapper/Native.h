@@ -58,6 +58,9 @@ struct DisassembleDescription
     char* binary;
 };
 
+char* binaryArray;
+char* msgArray;
+
 #define DLLEXPORT extern "C" __declspec(dllexport)
 
 DLLEXPORT void Compile(SourceDescription* source, TargetDescription* target, ResultDescription* result);

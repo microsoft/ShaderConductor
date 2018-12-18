@@ -164,12 +164,6 @@ int main(int argc, char** argv)
     {
         const auto result = Compiler::Compile(std::move(sourceDesc), std::move(targetDesc));
 
-/*		Compiler::DisassembleDesc disassembleSource;
-        disassembleSource.language = ShadingLanguage::SpirV;
-        disassembleSource.binary = result.target;
-
-		const auto result2 = Compiler::Disassemble(disassembleSource);*/
-
         if (!result.errorWarningMsg.empty())
         {
             std::cerr << "Error or warning form shader compiler: " << std::endl << result.errorWarningMsg << std::endl;
