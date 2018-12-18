@@ -25,7 +25,6 @@
 
 #include "Native.h"
 #include <ShaderConductor/ShaderConductor.hpp>
-#include <iostream>
 
 using namespace ShaderConductor;
 
@@ -36,10 +35,10 @@ char* CopyString(const char* source, int length = -1)
     {
         sourceLength = strlen(source);
     }
-	else
-	{
+    else
+    {
         sourceLength = length;
-	}
+    }
 
     char* result = new char[sourceLength + 1];
     strncpy_s(result, sourceLength + 1, source, sourceLength);
@@ -57,7 +56,6 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
     Compiler::TargetDesc targetDesc;
     targetDesc.language = target->shadingLanguage;
     targetDesc.version = target->version;
-    targetDesc.disassemble = target->disassemble;
 
     try
     {
@@ -69,19 +67,61 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
             result->errorWarningMsg = CopyString(errorData);
         }
         if (!translation.target.empty())
-        {
-            const char* targetData = reinterpret_cast<const char*>(translation.target.data());
-            result->targetSize = static_cast<int>(translation.target.size());
-            result->target = CopyString(targetData, result->targetSize);
+        {            
+			/*if (translation.isText)
+			{
+				const char* targetData = reinterpret_cast<const char*>(translation.target.data());
+				result->targetSize = static_cast<int>(translation.target.size());
+				result->target = CopyString(targetData, result->targetSize);	
+			}
+			else
+			{*/
+				result->targetSize = translation.target.size();				
+				char* myArray = new char[result->targetSize];
+				for (int i = 0; i < result->targetSize; i++)
+				{
+                    myArray[i] = translation.target[i];
+				}
+				
+				result->target = myArray;               
+			////}
         }
 
         result->hasError = translation.hasError;
-        result->isText = translation.isText;
+        result->isText = translation.isText;	
     }
     catch (std::exception& ex)
     {
-        const char* exception = ex.what();      
+        const char* exception = ex.what();
         result->errorWarningMsg = CopyString(exception);
         result->hasError = true;
     }
+}
+
+void Disassemble(DisassembleDescription* source, ResultDescription* result)
+{
+    Compiler::DisassembleDesc disasembleSource;
+    disasembleSource.language = source->language;
+	disasembleSource.binary = std::vector<uint8_t>(source->binary, source->binary + source->binarySize);    	
+
+    const auto disassembleResult = Compiler::Disassemble(disasembleSource);	
+
+	if (!disassembleResult.errorWarningMsg.empty())
+    {
+        const char* errorData = disassembleResult.errorWarningMsg.c_str();
+        result->errorWarningMsg = CopyString(errorData);
+    }
+    if (!disassembleResult.target.empty())
+    {
+        const char* targetData = reinterpret_cast<const char*>(disassembleResult.target.data());
+        result->targetSize = static_cast<int>(disassembleResult.target.size());
+        result->target = CopyString(targetData, result->targetSize);
+    }
+
+    result->hasError = disassembleResult.hasError;
+    result->isText = disassembleResult.isText;
+}
+
+void FreeResources()
+{
 }

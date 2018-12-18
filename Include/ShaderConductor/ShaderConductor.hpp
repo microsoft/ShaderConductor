@@ -100,11 +100,11 @@ namespace ShaderConductor
             std::function<std::string(const std::string& includeName)> loadIncludeCallback;
         };
 
+
         struct TargetDesc
         {
             ShadingLanguage language;
             std::string version;
-            bool disassemble;
         };
 
         struct ResultDesc
@@ -116,8 +116,15 @@ namespace ShaderConductor
             bool hasError;
         };
 
+        struct DisassembleDesc
+        {
+            ShadingLanguage language;
+            std::vector<uint8_t> binary;
+		};
+
     public:
         static ResultDesc Compile(SourceDesc source, TargetDesc target);
+        static ResultDesc Disassemble(DisassembleDesc source);
     };
 } // namespace ShaderConductor
 

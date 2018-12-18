@@ -47,8 +47,7 @@ int main(int argc, char** argv)
         ("E,entry", "Entry point of the shader", cxxopts::value<std::string>()->default_value("main"))
         ("I,input", "Input file name", cxxopts::value<std::string>())("O,output", "Output file name", cxxopts::value<std::string>())
         ("S,stage", "Shader stage: vs, ps, gs, hs, ds, cs", cxxopts::value<std::string>())
-        ("T,target", "Target shading language: dxil, spirv, hlsl, glsl, essl, msl", cxxopts::value<std::string>()->default_value("dxil"))
-		("D,disassemble", "Disassemble target shading language (SPIRV and DXIL)", cxxopts::value<bool>()->default_value("false"))
+        ("T,target", "Target shading language: dxil, spirv, hlsl, glsl, essl, msl", cxxopts::value<std::string>()->default_value("dxil"))		
         ("V,version", "The version of target shading language", cxxopts::value<std::string>()->default_value(""));
 
     // clang-format on
@@ -69,7 +68,6 @@ int main(int argc, char** argv)
 
     sourceDesc.fileName = opts["input"].as<std::string>();
     const auto targetName = opts["target"].as<std::string>();
-    targetDesc.disassemble = opts["disassemble"].as<bool>();
     targetDesc.version = opts["version"].as<std::string>();
 
     const auto stageName = opts["stage"].as<std::string>();
@@ -165,6 +163,12 @@ int main(int argc, char** argv)
     try
     {
         const auto result = Compiler::Compile(std::move(sourceDesc), std::move(targetDesc));
+
+/*		Compiler::DisassembleDesc disassembleSource;
+        disassembleSource.language = ShadingLanguage::SpirV;
+        disassembleSource.binary = result.target;
+
+		const auto result2 = Compiler::Disassemble(disassembleSource);*/
 
         if (!result.errorWarningMsg.empty())
         {

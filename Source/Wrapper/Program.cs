@@ -45,23 +45,35 @@ namespace CSharpConsole
 
             Wrapper.TargetDesc targetDesc = new Wrapper.TargetDesc()
             {
-                language = Wrapper.ShadingLanguage.SpirV,
+                language = Wrapper.ShadingLanguage.Glsl,
                 version = "460",
-                disassemble = true,
             };
 
             Wrapper.Compile(ref sourceDesc, ref targetDesc, out Wrapper.ResultDesc result);
 
+            if (!result.isText)
+            {
+                Wrapper.DisassembleDesc disassembleDesc = new Wrapper.DisassembleDesc()
+                {
+                    language = targetDesc.language,
+                    binarySize = result.targetSize,
+                    binary = result.target,
+                };
+
+                Wrapper.Disassemble(ref disassembleDesc, out Wrapper.ResultDesc disassembleResult);
+                result = disassembleResult;
+            }
+
             if (result.isText)
             {
-                string translate = Marshal.PtrToStringAnsi(result.target);
+                string translation = Marshal.PtrToStringAnsi(result.target, result.targetSize);
 
                 Console.WriteLine("*************************\n" +
-                                  "**  GLSL translation   **\n" +
+                                  "**  Translation   **\n" +
                                   "*************************\n");
-                Console.WriteLine(translate);
-            }            
-
+                Console.WriteLine(translation);
+            }
+           
             if (result.hasError)
             {
                 string warning = Marshal.PtrToStringAnsi(result.errorWarningMsg);
@@ -70,6 +82,8 @@ namespace CSharpConsole
                                   "*************************\n");
                 Console.WriteLine(warning);
             }
+
+            Wrapper.FreeResources();
 
             Console.Read();
         }

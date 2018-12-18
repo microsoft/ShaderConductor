@@ -40,7 +40,6 @@ struct TargetDescription
 {
     ShadingLanguage shadingLanguage;
     const char* version;
-    bool disassemble;
 };
 
 struct ResultDescription
@@ -52,4 +51,17 @@ struct ResultDescription
     char* errorWarningMsg;
 };
 
-extern "C" __declspec(dllexport) void Compile(SourceDescription* source, TargetDescription* target, ResultDescription* result);
+struct DisassembleDescription
+{
+    ShadingLanguage language;
+    int binarySize;
+    char* binary;
+};
+
+#define DLLEXPORT extern "C" __declspec(dllexport)
+
+DLLEXPORT void Compile(SourceDescription* source, TargetDescription* target, ResultDescription* result);
+
+DLLEXPORT void Disassemble(DisassembleDescription* source, ResultDescription* result);
+
+DLLEXPORT void FreeResources();
