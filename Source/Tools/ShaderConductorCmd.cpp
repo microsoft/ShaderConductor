@@ -47,9 +47,8 @@ int main(int argc, char** argv)
         ("E,entry", "Entry point of the shader", cxxopts::value<std::string>()->default_value("main"))
         ("I,input", "Input file name", cxxopts::value<std::string>())("O,output", "Output file name", cxxopts::value<std::string>())
         ("S,stage", "Shader stage: vs, ps, gs, hs, ds, cs", cxxopts::value<std::string>())
-        ("T,target", "Target shading language: dxil, spirv, hlsl, glsl, essl, msl", cxxopts::value<std::string>()->default_value("dxil"))		
+        ("T,target", "Target shading language: dxil, spirv, hlsl, glsl, essl, msl", cxxopts::value<std::string>()->default_value("dxil"))
         ("V,version", "The version of target shading language", cxxopts::value<std::string>()->default_value(""));
-
     // clang-format on
 
     auto opts = options.parse(argc, argv);
