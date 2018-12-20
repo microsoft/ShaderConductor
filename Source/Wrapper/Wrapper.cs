@@ -35,8 +35,14 @@ namespace CSharpConsole
     public class Wrapper
     {     
         [DllImport("ShaderConductorWrapper.dll", CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void Compile([In] ref SourceDesc source, [In] ref TargetDesc target, out ResultDesc result);      
+        public static extern void Compile([In] ref SourceDesc source, [In] ref TargetDesc target, out ResultDesc result);
 
+        [DllImport("ShaderConductorWrapper.dll", CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Disassemble([In] ref DisassembleDesc source, out ResultDesc result);
+
+        [DllImport("ShaderConductorWrapper.dll", CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void FreeResources();
+        
         public enum ShaderStage
         {
             VertexShader,
@@ -91,7 +97,15 @@ namespace CSharpConsole
             public IntPtr target;
             public int targetSize;
             public bool hasError;
-            public IntPtr errorWarningMsg;            
+            public IntPtr errorWarningMsg;           
+        }
+      
+        [StructLayout(LayoutKind.Sequential)]
+        public struct DisassembleDesc
+        {
+            public ShadingLanguage language;
+            public int binarySize;
+            public IntPtr binary;
         }
     }
 }

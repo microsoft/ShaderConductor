@@ -29,22 +29,14 @@
 
 using namespace ShaderConductor;
 
-char* CopyString(const char* source, int length = -1)
+char* CopyString(const char* source)
 {
-    size_t sourceLength;
-    if (length < 0)
-    {
-        sourceLength = strlen(source);
-    }
-	else
-	{
-        sourceLength = length;
-	}
+    size_t sourceLength = strlen(source);
+    
+    msgArray = new char[sourceLength + 1];
+    strncpy_s(msgArray, sourceLength + 1, source, sourceLength);
 
-    char* result = new char[sourceLength + 1];
-    strncpy_s(result, sourceLength + 1, source, sourceLength);
-
-    return result;
+    return msgArray;
 }
 
 void Compile(SourceDescription* source, TargetDescription* target, ResultDescription* result)
@@ -69,9 +61,11 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
         }
         if (!translation.target.empty())
         {
-            const char* targetData = reinterpret_cast<const char*>(translation.target.data());
-            result->targetSize = static_cast<int>(translation.target.size());
-            result->target = CopyString(targetData, result->targetSize);
+            result->targetSize = translation.target.size();
+            binaryArray = new char[result->targetSize];
+            std::copy(translation.target.data(), translation.target.data() + result->targetSize, binaryArray);
+
+            result->target = binaryArray;
         }
 
         result->hasError = translation.hasError;
@@ -79,8 +73,40 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
     }
     catch (std::exception& ex)
     {
-        const char* exception = ex.what();      
+        const char* exception = ex.what();
         result->errorWarningMsg = CopyString(exception);
         result->hasError = true;
     }
+}
+
+void Disassemble(DisassembleDescription* source, ResultDescription* result)
+{
+    Compiler::DisassembleDesc disasembleSource;
+    disasembleSource.language = source->language;
+    disasembleSource.binary = std::vector<uint8_t>(source->binary, source->binary + source->binarySize);
+
+    const auto disassembleResult = Compiler::Disassemble(disasembleSource);
+
+    if (!disassembleResult.errorWarningMsg.empty())
+    {
+        const char* errorData = disassembleResult.errorWarningMsg.c_str();
+        result->errorWarningMsg = CopyString(errorData);
+    }
+    if (!disassembleResult.target.empty())
+    {
+        result->targetSize = disassembleResult.target.size();
+        binaryArray = new char[result->targetSize];
+        std::copy(disassembleResult.target.data(), disassembleResult.target.data() + result->targetSize, binaryArray);
+
+        result->target = binaryArray;      
+    }
+
+    result->hasError = disassembleResult.hasError;
+    result->isText = disassembleResult.isText;
+}
+
+void FreeResources()
+{
+    delete[] binaryArray;
+    delete[] msgArray;
 }

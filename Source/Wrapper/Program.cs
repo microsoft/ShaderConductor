@@ -37,28 +37,42 @@ namespace CSharpConsole
 
             Wrapper.SourceDesc sourceDesc = new Wrapper.SourceDesc()
             {
-                entryPoint = "VS",
-                stage = Wrapper.ShaderStage.VertexShader,
+                entryPoint = "PS",
+
+                stage = Wrapper.ShaderStage.PixelShader,
                 source = source,
             };
 
             Wrapper.TargetDesc targetDesc = new Wrapper.TargetDesc()
             {
-                language = Wrapper.ShadingLanguage.Glsl,
-                version = "450",
+                language = Wrapper.ShadingLanguage.SpirV,
+                version = "460",
             };
 
             Wrapper.Compile(ref sourceDesc, ref targetDesc, out Wrapper.ResultDesc result);
 
+            if (!result.isText)
+            {
+                Wrapper.DisassembleDesc disassembleDesc = new Wrapper.DisassembleDesc()
+                {
+                    language = targetDesc.language,
+                    binarySize = result.targetSize,
+                    binary = result.target,
+                };
+
+                Wrapper.Disassemble(ref disassembleDesc, out Wrapper.ResultDesc disassembleResult);
+                result = disassembleResult;
+            }
+
             if (result.isText)
             {
-                string translate = Marshal.PtrToStringAnsi(result.target);
+                string translation = Marshal.PtrToStringAnsi(result.target, result.targetSize);
 
                 Console.WriteLine("*************************\n" +
-                                  "**  GLSL translation   **\n" +
+                                  "**  Translation        **\n" +
                                   "*************************\n");
-                Console.WriteLine(translate);
-            }            
+                Console.WriteLine(translation);
+            }
 
             if (result.hasError)
             {
@@ -68,6 +82,8 @@ namespace CSharpConsole
                                   "*************************\n");
                 Console.WriteLine(warning);
             }
+
+            Wrapper.FreeResources();
 
             Console.Read();
         }
