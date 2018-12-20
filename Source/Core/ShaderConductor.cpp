@@ -38,6 +38,7 @@
 #include <dxc/dxcapi.h>
 #include <llvm/Support/ErrorHandling.h>
 
+#include <spirv-tools/libspirv.h>
 #include <spirv.hpp>
 #include <spirv_cross.hpp>
 #include <spirv_glsl.hpp>
@@ -630,6 +631,41 @@ namespace ShaderConductor
             ret = ConvertBinary(ret, source, target);
         }
 
+        return ret;
+    }
+
+    Compiler::ResultDesc Compiler::Disassemble(DisassembleDesc source)
+    {
+        assert(source.language == ShadingLanguage::SpirV);
+
+        Compiler::ResultDesc ret;
+        ret.isText = true;
+
+        const uint32_t* spirvIr = reinterpret_cast<const uint32_t*>(source.binary.data());
+        const size_t spirvSize = source.binary.size() / sizeof(uint32_t);
+
+        spv_context context = spvContextCreate(SPV_ENV_UNIVERSAL_1_3);
+        uint32_t options = SPV_BINARY_TO_TEXT_OPTION_NONE | SPV_BINARY_TO_TEXT_OPTION_INDENT | SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES;
+        spv_text text = nullptr;
+        spv_diagnostic diagnostic = nullptr;
+
+        spv_result_t error = spvBinaryToText(context, spirvIr, spirvSize, options, &text, &diagnostic);
+        spvContextDestroy(context);
+
+        if (error)
+        {
+            ret.errorWarningMsg = diagnostic->error;
+            ret.hasError = true;
+            spvDiagnosticDestroy(diagnostic);
+        }
+        else
+        {
+            std::string disassemble = std::string(text->str);           
+            ret.target.assign(disassemble.begin(), disassemble.end());
+            ret.hasError = false;
+        }
+
+        spvTextDestroy(text);
         return ret;
     }
 } // namespace ShaderConductor

@@ -115,8 +115,15 @@ namespace ShaderConductor
             bool hasError;
         };
 
+        struct DisassembleDesc
+        {
+            ShadingLanguage language;
+            std::vector<uint8_t> binary;
+        };
+
     public:
         static ResultDesc Compile(SourceDesc source, TargetDesc target);
+        static ResultDesc Disassemble(DisassembleDesc source);
     };
 } // namespace ShaderConductor
 
