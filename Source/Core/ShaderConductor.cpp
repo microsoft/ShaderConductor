@@ -38,7 +38,7 @@
 #include <dxc/dxcapi.h>
 #include <llvm/Support/ErrorHandling.h>
 
-#include "spirv-tools/libspirv.h"
+#include <spirv-tools/libspirv.h>
 #include <spirv.hpp>
 #include <spirv_cross.hpp>
 #include <spirv_glsl.hpp>
@@ -412,7 +412,7 @@ namespace
         }
 
         return ret;
-    }   
+    }
 
     Compiler::ResultDesc ConvertBinary(const Compiler::ResultDesc& binaryResult, const Compiler::SourceDesc& source,
                                        const Compiler::TargetDesc& target)
@@ -672,7 +672,6 @@ namespace ShaderConductor
         spvTextDestroy(text);
         return ret;
     }
-
 } // namespace ShaderConductor
 
 #ifdef _WIN32
