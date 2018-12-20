@@ -608,7 +608,6 @@ namespace
 
         return ret;
     }
-
 } // namespace
 
 namespace ShaderConductor
@@ -627,20 +626,17 @@ namespace ShaderConductor
         const auto binaryLanguage = target.language == ShadingLanguage::Dxil ? ShadingLanguage::Dxil : ShadingLanguage::SpirV;
         auto ret = CompileToBinary(source, binaryLanguage);
 
-        if (!ret.hasError)
+        if (!ret.hasError && (target.language != binaryLanguage))
         {
-            if (target.language != binaryLanguage)
-            {
-                ret = ConvertBinary(ret, source, target);
-            }            
+            ret = ConvertBinary(ret, source, target);
         }
 
         return ret;
     }
 
-	Compiler::ResultDesc Compiler::Disassemble(DisassembleDesc source)
+    Compiler::ResultDesc Compiler::Disassemble(DisassembleDesc source)
     {
-        assert((source.language == ShadingLanguage::Dxil) || (source.language == ShadingLanguage::SpirV));
+        assert(source.language == ShadingLanguage::SpirV);
 
         Compiler::ResultDesc ret;
         ret.isText = true;
