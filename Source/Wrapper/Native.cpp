@@ -61,7 +61,7 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
         }
         if (!translation.target.empty())
         {
-            result->targetSize = translation.target.size();
+            result->targetSize = static_cast<int>(translation.target.size());
             binaryArray = new char[result->targetSize];
             std::copy(translation.target.data(), translation.target.data() + result->targetSize, binaryArray);
 
@@ -94,7 +94,7 @@ void Disassemble(DisassembleDescription* source, ResultDescription* result)
     }
     if (!disassembleResult.target.empty())
     {
-        result->targetSize = disassembleResult.target.size();
+        result->targetSize = static_cast<int>(disassembleResult.target.size());
         binaryArray = new char[result->targetSize];
         std::copy(disassembleResult.target.data(), disassembleResult.target.data() + result->targetSize, binaryArray);
 
