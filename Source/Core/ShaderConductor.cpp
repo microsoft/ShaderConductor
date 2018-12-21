@@ -411,7 +411,7 @@ namespace
                 ret.hasError = false;
             }
         }
-     
+
         return ret;
     }
 
@@ -678,14 +678,16 @@ namespace ShaderConductor
                 source.binary.data(), static_cast<UINT32>(source.binary.size()), CP_UTF8, &blob));
             IFT(Dxcompiler::Instance().Compiler()->Disassemble(blob, &pDisassembly));
 
-            auto disassembly = std::string((char*)pDisassembly->GetBufferPointer(), pDisassembly->GetBufferSize());
-
             if (pDisassembly != nullptr)
             {
                 const uint8_t* programPtr = reinterpret_cast<const uint8_t*>(pDisassembly->GetBufferPointer());
                 ret.target.assign(programPtr, programPtr + pDisassembly->GetBufferSize());
 
                 ret.hasError = false;
+            }
+            else
+            {
+                ret.hasError = true;
             }
         }
 
