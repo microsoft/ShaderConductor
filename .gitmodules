@@ -1,0 +1,18 @@
+[submodule "External/cxxopts"]
+	path = External/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git
+[submodule "External/googletest"]
+	path = External/googletest
+	url = https://github.com/google/googletest.git
+[submodule "External/SPIRV-Headers"]
+	path = External/SPIRV-Headers
+	url = https://github.com/KhronosGroup/SPIRV-Headers.git
+[submodule "External/SPIRV-Tools"]
+	path = External/SPIRV-Tools
+	url = https://github.com/KhronosGroup/SPIRV-Tools.git
+[submodule "External/SPIRV-Cross"]
+	path = External/SPIRV-Cross
+	url = https://github.com/KhronosGroup/SPIRV-Cross.git
+[submodule "External/DirectXShaderCompiler"]
+	path = External/DirectXShaderCompiler
+	url = https://github.com/Microsoft/DirectXShaderCompiler.git
