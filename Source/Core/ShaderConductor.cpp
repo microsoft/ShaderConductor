@@ -636,36 +636,60 @@ namespace ShaderConductor
 
     Compiler::ResultDesc Compiler::Disassemble(DisassembleDesc source)
     {
-        assert(source.language == ShadingLanguage::SpirV);
+        assert((source.language == ShadingLanguage::SpirV) || (source.language == ShadingLanguage::Dxil));
 
         Compiler::ResultDesc ret;
         ret.isText = true;
 
-        const uint32_t* spirvIr = reinterpret_cast<const uint32_t*>(source.binary.data());
-        const size_t spirvSize = source.binary.size() / sizeof(uint32_t);
-
-        spv_context context = spvContextCreate(SPV_ENV_UNIVERSAL_1_3);
-        uint32_t options = SPV_BINARY_TO_TEXT_OPTION_NONE | SPV_BINARY_TO_TEXT_OPTION_INDENT | SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES;
-        spv_text text = nullptr;
-        spv_diagnostic diagnostic = nullptr;
-
-        spv_result_t error = spvBinaryToText(context, spirvIr, spirvSize, options, &text, &diagnostic);
-        spvContextDestroy(context);
-
-        if (error)
+        if (source.language == ShadingLanguage::SpirV)
         {
-            ret.errorWarningMsg = diagnostic->error;
-            ret.hasError = true;
-            spvDiagnosticDestroy(diagnostic);
+            const uint32_t* spirvIr = reinterpret_cast<const uint32_t*>(source.binary.data());
+            const size_t spirvSize = source.binary.size() / sizeof(uint32_t);
+
+            spv_context context = spvContextCreate(SPV_ENV_UNIVERSAL_1_3);
+            uint32_t options = SPV_BINARY_TO_TEXT_OPTION_NONE | SPV_BINARY_TO_TEXT_OPTION_INDENT | SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES;
+            spv_text text = nullptr;
+            spv_diagnostic diagnostic = nullptr;
+
+            spv_result_t error = spvBinaryToText(context, spirvIr, spirvSize, options, &text, &diagnostic);
+            spvContextDestroy(context);
+
+            if (error)
+            {
+                ret.errorWarningMsg = diagnostic->error;
+                ret.hasError = true;
+                spvDiagnosticDestroy(diagnostic);
+            }
+            else
+            {
+                std::string disassemble = std::string(text->str);
+                ret.target.assign(disassemble.begin(), disassemble.end());
+                ret.hasError = false;
+            }
+
+            spvTextDestroy(text);
         }
         else
         {
-            std::string disassemble = std::string(text->str);           
-            ret.target.assign(disassemble.begin(), disassemble.end());
-            ret.hasError = false;
+            CComPtr<IDxcBlobEncoding> blob;
+            CComPtr<IDxcBlobEncoding> pDisassembly;
+            IFT(Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(
+                source.binary.data(), static_cast<UINT32>(source.binary.size()), CP_UTF8, &blob));
+            IFT(Dxcompiler::Instance().Compiler()->Disassemble(blob, &pDisassembly));
+
+            if (pDisassembly != nullptr)
+            {
+                const uint8_t* programPtr = reinterpret_cast<const uint8_t*>(pDisassembly->GetBufferPointer());
+                ret.target.assign(programPtr, programPtr + pDisassembly->GetBufferSize());
+
+                ret.hasError = false;
+            }
+            else
+            {
+                ret.hasError = true;
+            }
         }
 
-        spvTextDestroy(text);
         return ret;
     }
 } // namespace ShaderConductor
