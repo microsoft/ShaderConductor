@@ -26,7 +26,7 @@ ShaderConductor is not a real compiler. Instead, it glues existing open source c
 
 ## Prerequisites
 
-* [Git](http://git-scm.com/downloads).
+* [Git](http://git-scm.com/downloads). Put git into the PATH is recommended.
 * [Visual Studio 2017](https://www.visualstudio.com/downloads). Select the following workloads: Universal Windows Platform Development and Desktop Development with C++.
 * [CMake](https://www.cmake.org/download/). Version 3.9 or up. It's highly recommended to choose "Add CMake to the system PATH for all users" during installation.
 * [Python](https://www.python.org/downloads/). Version 2.7 or up. You need not change your PATH variable during installation.
