@@ -309,6 +309,9 @@ namespace
 
         std::vector<DxcDefine> dxcDefines;
         std::vector<std::wstring> dxcDefineStrings;
+        // Need to reserve capacity so that small-string optimization does not
+        // invalidate the pointers to internal string data while resizing.
+        dxcDefineStrings.reserve(source.defines.size() * 2);
         for (const auto& define : source.defines)
         {
             std::wstring nameUtf16Str;
@@ -317,7 +320,7 @@ namespace
             const wchar_t* nameUtf16 = dxcDefineStrings.back().c_str();
 
             const wchar_t* valueUtf16;
-            if (define.value.empty())
+            if (!define.value.empty())
             {
                 std::wstring valueUtf16Str;
                 Unicode::UTF8ToUTF16String(define.value.c_str(), &valueUtf16Str);
