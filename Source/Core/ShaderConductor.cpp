@@ -245,13 +245,16 @@ namespace
     {
         std::vector<char> ret;
         std::ifstream includeFile(includeName, std::ios_base::in);
-        includeFile.seekg(0, std::ios::end);
-        ret.resize(includeFile.tellg());
-        includeFile.seekg(0, std::ios::beg);
-        includeFile.read(ret.data(), ret.size());
-        while (!ret.empty() && (ret.back() == '\0'))
+        if (includeFile)
         {
-            ret.pop_back();
+            includeFile.seekg(0, std::ios::end);
+            ret.resize(includeFile.tellg());
+            includeFile.seekg(0, std::ios::beg);
+            includeFile.read(ret.data(), ret.size());
+            while (!ret.empty() && (ret.back() == '\0'))
+            {
+                ret.pop_back();
+            }
         }
         return std::string(ret.data(), ret.size());
     }
