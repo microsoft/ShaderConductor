@@ -30,7 +30,6 @@
 #include <dxc/Support/WinAdapter.h>
 #include <dxc/Support/WinIncludes.h>
 
-
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -637,7 +636,7 @@ namespace ShaderConductor
 
     Compiler::ResultDesc Compiler::Disassemble(DisassembleDesc source)
     {
-        assert(source.language == ShadingLanguage::SpirV || source.language == ShadingLanguage::Dxil);
+        assert((source.language == ShadingLanguage::SpirV) || (source.language == ShadingLanguage::Dxil));
 
         Compiler::ResultDesc ret;
         ret.isText = true;
