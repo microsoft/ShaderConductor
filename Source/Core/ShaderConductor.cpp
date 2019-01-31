@@ -187,8 +187,12 @@ namespace
                 return E_FAIL;
             }
 
-            const std::string source = m_loadCallback(utf8FileName);
-            if (source.empty())
+            std::string source;
+            try
+            {
+                source = m_loadCallback(utf8FileName);
+            }
+            catch (...)
             {
                 return E_FAIL;
             }
@@ -255,6 +259,10 @@ namespace
             {
                 ret.pop_back();
             }
+        }
+        else
+        {
+            throw std::runtime_error("COULDN'T load included file " + includeName + ".");
         }
         return std::string(ret.data(), ret.size());
     }

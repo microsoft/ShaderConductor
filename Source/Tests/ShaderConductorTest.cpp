@@ -66,6 +66,31 @@ namespace
         }
     }
 
+    void CompareWithExpected(const std::vector<uint8_t>& actual, bool isText, const std::string& compareName)
+    {
+        std::vector<uint8_t> expected = LoadFile(TEST_DATA_DIR "Expected/" + compareName, isText);
+        if (isText)
+        {
+            TrimTailingZeros(&expected);
+        }
+
+        if (expected != actual)
+        {
+            if (!actual.empty())
+            {
+                std::ios_base::openmode mode = std::ios_base::out;
+                if (!isText)
+                {
+                    mode |= std::ios_base::binary;
+                }
+                std::ofstream actualFile(TEST_DATA_DIR "Result/" + compareName, mode);
+                actualFile.write(reinterpret_cast<const char*>(actual.data()), actual.size());
+            }
+
+            EXPECT_TRUE(false);
+        }
+    }
+
     void HlslToAnyTest(const std::string& name, const Compiler::SourceDesc& source, const Compiler::TargetDesc& target, bool expectSuccess)
     {
         static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl" };
@@ -87,28 +112,7 @@ namespace
             }
             compareName += "." + extMap[static_cast<uint32_t>(target.language)];
 
-            std::vector<uint8_t> expected = LoadFile(TEST_DATA_DIR "Expected/" + compareName, result.isText);
-            if (result.isText)
-            {
-                TrimTailingZeros(&expected);
-            }
-
-            const auto& actual = result.target;
-            if (expected != actual)
-            {
-                if (!actual.empty())
-                {
-                    std::ios_base::openmode mode = std::ios_base::out;
-                    if (!result.isText)
-                    {
-                        mode |= std::ios_base::binary;
-                    }
-                    std::ofstream actualFile(TEST_DATA_DIR "Result/" + compareName, mode);
-                    actualFile.write(reinterpret_cast<const char*>(actual.data()), actual.size());
-                }
-
-                EXPECT_TRUE(false);
-            }
+            CompareWithExpected(result.target, result.isText, compareName);
         }
         else
         {
@@ -482,6 +486,54 @@ namespace
     TEST_F(ComputeShaderTest, ToMsl)
     {
         RunTests(ShadingLanguage::Msl);
+    }
+
+    TEST(IncludeTest, IncludeExist)
+    {
+        const std::string fileName = TEST_DATA_DIR "Input/IncludeExist.hlsl";
+
+        std::vector<uint8_t> input = LoadFile(fileName, true);
+        TrimTailingZeros(&input);
+        const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+
+        const auto result = Compiler::Compile({ source, fileName, "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
+
+        EXPECT_FALSE(result.hasError);
+        EXPECT_STREQ(result.errorWarningMsg.c_str(), "");
+        EXPECT_TRUE(result.isText);
+
+        CompareWithExpected(result.target, result.isText, "IncludeExist.glsl");
+    }
+
+    TEST(IncludeTest, IncludeNotExist)
+    {
+        const std::string fileName = TEST_DATA_DIR "Input/IncludeNotExist.hlsl";
+
+        std::vector<uint8_t> input = LoadFile(fileName, true);
+        TrimTailingZeros(&input);
+        const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+
+        const auto result = Compiler::Compile({ source, fileName, "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
+
+        EXPECT_TRUE(result.hasError);
+        EXPECT_GE(result.errorWarningMsg.find("fatal error: 'Header.hlsli' file not found"), 0);
+    }
+
+    TEST(IncludeTest, IncludeEmptyFile)
+    {
+        const std::string fileName = TEST_DATA_DIR "Input/IncludeEmptyHeader.hlsl";
+
+        std::vector<uint8_t> input = LoadFile(fileName, true);
+        TrimTailingZeros(&input);
+        const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+
+        const auto result = Compiler::Compile({ source, fileName, "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
+
+        EXPECT_FALSE(result.hasError);
+        EXPECT_STREQ(result.errorWarningMsg.c_str(), "");
+        EXPECT_TRUE(result.isText);
+
+        CompareWithExpected(result.target, result.isText, "IncludeEmptyHeader.glsl");
     }
 } // namespace
 
