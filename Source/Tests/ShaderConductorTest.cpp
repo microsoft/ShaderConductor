@@ -102,23 +102,27 @@ namespace
         if (expectSuccess)
         {
             EXPECT_FALSE(result.hasError);
-            EXPECT_STREQ(result.errorWarningMsg.c_str(), "");
+            EXPECT_EQ(result.errorWarningMsg, nullptr);
             EXPECT_TRUE(result.isText);
 
             std::string compareName = name;
-            if (!target.version.empty())
+            if (target.version != nullptr)
             {
-                compareName += "." + target.version;
+                compareName += "." + std::string(target.version);
             }
             compareName += "." + extMap[static_cast<uint32_t>(target.language)];
 
-            CompareWithExpected(result.target, result.isText, compareName);
+            const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
+            CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, compareName);
         }
         else
         {
             EXPECT_TRUE(result.hasError);
-            EXPECT_TRUE(result.target.empty());
+            EXPECT_EQ(result.target, nullptr);
         }
+
+        DestroyBlob(result.errorWarningMsg);
+        DestroyBlob(result.target);
     }
 
     class TestBase : public testing::Test
@@ -131,11 +135,13 @@ namespace
                 const std::string& name = std::get<0>(src);
                 Compiler::SourceDesc& source = std::get<1>(src);
 
-                source.fileName = TEST_DATA_DIR "Input/" + name + ".hlsl";
+                std::get<3>(src) = TEST_DATA_DIR "Input/" + name + ".hlsl";
+                source.fileName = std::get<3>(src).c_str();
 
                 std::vector<uint8_t> input = LoadFile(source.fileName, true);
                 TrimTailingZeros(&input);
-                source.source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+                std::get<4>(src) = std::string(reinterpret_cast<char*>(input.data()), input.size());
+                source.source = std::get<4>(src).c_str();
             }
         }
 
@@ -154,7 +160,9 @@ namespace
         }
 
     protected:
-        std::vector<std::tuple<std::string, Compiler::SourceDesc, std::vector<std::tuple<bool, Compiler::TargetDesc>>>> m_combinations;
+        std::vector<
+            std::tuple<std::string, Compiler::SourceDesc, std::vector<std::tuple<bool, Compiler::TargetDesc>>, std::string, std::string>>
+            m_combinations;
 
         // clang-format off
         const std::vector<std::tuple<bool, Compiler::TargetDesc>> m_allTestTargets =
@@ -186,16 +194,22 @@ namespace
                     "Constant_VS",
                     { "", "", "VSMain", ShaderStage::VertexShader },
                     m_allTestTargets,
+                    "",
+                    ""
                 },
                 {
                     "PassThrough_VS",
                     { "", "", "VSMain", ShaderStage::VertexShader },
                     m_allTestTargets,
+                    "",
+                    ""
                 },
                 {
                     "Transform_VS",
                     { "", "", "", ShaderStage::VertexShader },
                     m_allTestTargets,
+                    "",
+                    ""
                 },
             };
             // clang-format on
@@ -216,16 +230,22 @@ namespace
                     "Constant_PS",
                     { "", "", "PSMain", ShaderStage::PixelShader },
                     m_allTestTargets,
+                    "",
+                    ""
                 },
                 {
                     "PassThrough_PS",
                     { "", "", "PSMain", ShaderStage::PixelShader },
                     m_allTestTargets,
+                    "",
+                    ""
                 },
                 {
                     "ToneMapping_PS",
                     { "", "", "", ShaderStage::PixelShader },
                     m_allTestTargets,
+                    "",
+                    ""
                 },
             };
             // clang-format on
@@ -244,7 +264,7 @@ namespace
             {
                 {
                     "Particle_GS",
-                    { "", "", "", ShaderStage::GeometryShader, { { "FIXED_VERTEX_RADIUS", "5.0" } } },
+                    { "", "", "", ShaderStage::GeometryShader, defines_.data(), static_cast<uint32_t>(defines_.size()) },
                     {
                         { false, { ShadingLanguage::Hlsl, "30" } }, // No GS in HLSL SM3
                         { false, { ShadingLanguage::Hlsl, "40" } }, // GS not supported yet
@@ -258,12 +278,17 @@ namespace
 
                         { false, { ShadingLanguage::Msl } }, // No GS in MSL
                     },
+                    "",
+                    ""
                 },
             };
             // clang-format on
 
             TestBase::SetUp();
         }
+
+    private:
+        std::vector<MacroDefine> defines_ = { { "FIXED_VERTEX_RADIUS", "5.0" } };
     };
 
     class HullShaderTest : public TestBase
@@ -290,6 +315,8 @@ namespace
 
                         { true, { ShadingLanguage::Msl } },
                     },
+                    "",
+                    ""
                 },
             };
             // clang-format on
@@ -322,6 +349,8 @@ namespace
 
                         { true, { ShadingLanguage::Msl } },
                     },
+                    "",
+                    ""
                 },
             };
             // clang-format on
@@ -354,6 +383,8 @@ namespace
 
                         { true, { ShadingLanguage::Msl } },
                     },
+                    "",
+                    ""
                 },
             };
             // clang-format on
@@ -496,13 +527,18 @@ namespace
         TrimTailingZeros(&input);
         const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
 
-        const auto result = Compiler::Compile({ source, fileName, "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
+        const auto result =
+            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
 
         EXPECT_FALSE(result.hasError);
-        EXPECT_STREQ(result.errorWarningMsg.c_str(), "");
+        EXPECT_EQ(result.errorWarningMsg, nullptr);
         EXPECT_TRUE(result.isText);
 
-        CompareWithExpected(result.target, result.isText, "IncludeExist.glsl");
+        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
+        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, "IncludeExist.glsl");
+
+        DestroyBlob(result.errorWarningMsg);
+        DestroyBlob(result.target);
     }
 
     TEST(IncludeTest, IncludeNotExist)
@@ -513,10 +549,15 @@ namespace
         TrimTailingZeros(&input);
         const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
 
-        const auto result = Compiler::Compile({ source, fileName, "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
+        const auto result =
+            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
 
         EXPECT_TRUE(result.hasError);
-        EXPECT_GE(result.errorWarningMsg.find("fatal error: 'Header.hlsli' file not found"), 0);
+        const char* errorStr = reinterpret_cast<const char*>(result.errorWarningMsg->Data());
+        EXPECT_GE(std::string(errorStr, errorStr + result.errorWarningMsg->Size()).find("fatal error: 'Header.hlsli' file not found"), 0);
+
+        DestroyBlob(result.errorWarningMsg);
+        DestroyBlob(result.target);
     }
 
     TEST(IncludeTest, IncludeEmptyFile)
@@ -527,13 +568,18 @@ namespace
         TrimTailingZeros(&input);
         const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
 
-        const auto result = Compiler::Compile({ source, fileName, "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
+        const auto result =
+            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
 
         EXPECT_FALSE(result.hasError);
-        EXPECT_STREQ(result.errorWarningMsg.c_str(), "");
+        EXPECT_EQ(result.errorWarningMsg, nullptr);
         EXPECT_TRUE(result.isText);
 
-        CompareWithExpected(result.target, result.isText, "IncludeEmptyHeader.glsl");
+        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
+        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, "IncludeEmptyHeader.glsl");
+
+        DestroyBlob(result.errorWarningMsg);
+        DestroyBlob(result.target);
     }
 } // namespace
 

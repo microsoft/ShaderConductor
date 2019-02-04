@@ -56,18 +56,20 @@ namespace CSharpConsole
                 Wrapper.DisassembleDesc disassembleDesc = new Wrapper.DisassembleDesc()
                 {
                     language = targetDesc.language,
-                    binarySize = result.targetSize,
-                    binary = result.target,
+                    binarySize = Wrapper.GetShaderConductorBlobSize(result.target),
+                    binary = Wrapper.GetShaderConductorBlobData(result.target),
                 };
 
                 Wrapper.Disassemble(ref disassembleDesc, out Wrapper.ResultDesc disassembleResult);
+                Wrapper.DestroyShaderConductorBlob(result.target);
+                Wrapper.DestroyShaderConductorBlob(result.errorWarningMsg);
                 result = disassembleResult;
             }
 
             if (result.isText)
             {
-                string translation = Marshal.PtrToStringAnsi(result.target, result.targetSize);
-
+                string translation = Marshal.PtrToStringAnsi(Wrapper.GetShaderConductorBlobData(result.target),
+                    Wrapper.GetShaderConductorBlobSize(result.target));
                 Console.WriteLine("*************************\n" +
                                   "**  Translation        **\n" +
                                   "*************************\n");
@@ -76,14 +78,16 @@ namespace CSharpConsole
 
             if (result.hasError)
             {
-                string warning = Marshal.PtrToStringAnsi(result.errorWarningMsg);
+                string warning = Marshal.PtrToStringAnsi(Wrapper.GetShaderConductorBlobData(result.errorWarningMsg),
+                    Wrapper.GetShaderConductorBlobSize(result.errorWarningMsg));
                 Console.WriteLine("*************************\n" +
                                   "**  Error output       **\n" +
                                   "*************************\n");
                 Console.WriteLine(warning);
             }
 
-            Wrapper.FreeResources();
+            Wrapper.DestroyShaderConductorBlob(result.target);
+            Wrapper.DestroyShaderConductorBlob(result.errorWarningMsg);
 
             Console.Read();
         }

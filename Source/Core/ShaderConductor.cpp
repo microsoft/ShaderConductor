@@ -34,6 +34,7 @@
 #include <atomic>
 #include <cassert>
 #include <fstream>
+#include <memory>
 
 #include <dxc/dxcapi.h>
 #include <llvm/Support/ErrorHandling.h>
@@ -169,8 +170,7 @@ namespace
     class ScIncludeHandler : public IDxcIncludeHandler
     {
     public:
-        explicit ScIncludeHandler(std::function<std::string(const std::string& includeName)> loadCallback)
-            : m_loadCallback(std::move(loadCallback))
+        explicit ScIncludeHandler(std::function<Blob*(const char* includeName)> loadCallback) : m_loadCallback(std::move(loadCallback))
         {
         }
 
@@ -187,10 +187,12 @@ namespace
                 return E_FAIL;
             }
 
-            std::string source;
+            auto blobDeleter = [](Blob* blob) { DestroyBlob(blob); };
+
+            std::unique_ptr<Blob, decltype(blobDeleter)> source(nullptr, blobDeleter);
             try
             {
-                source = m_loadCallback(utf8FileName);
+                source.reset(m_loadCallback(utf8FileName.c_str()));
             }
             catch (...)
             {
@@ -199,7 +201,7 @@ namespace
 
             *includeSource = nullptr;
             return Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(
-                source.data(), static_cast<UINT32>(source.size()), CP_UTF8, reinterpret_cast<IDxcBlobEncoding**>(includeSource));
+                source->Data(), source->Size(), CP_UTF8, reinterpret_cast<IDxcBlobEncoding**>(includeSource));
         }
 
         ULONG STDMETHODCALLTYPE AddRef() override
@@ -240,12 +242,12 @@ namespace
         }
 
     private:
-        std::function<std::string(const std::string& includeName)> m_loadCallback;
+        std::function<Blob*(const char* includeName)> m_loadCallback;
 
         std::atomic<ULONG> m_ref = 0;
     };
 
-    std::string DefaultLoadCallback(const std::string& includeName)
+    Blob* DefaultLoadCallback(const char* includeName)
     {
         std::vector<char> ret;
         std::ifstream includeFile(includeName, std::ios_base::in);
@@ -262,24 +264,48 @@ namespace
         }
         else
         {
-            throw std::runtime_error("COULDN'T load included file " + includeName + ".");
+            throw std::runtime_error(std::string("COULDN'T load included file ") + includeName + ".");
         }
-        return std::string(ret.data(), ret.size());
+        return CreateBlob(ret.data(), static_cast<uint32_t>(ret.size()));
     }
 
-    Compiler::ResultDesc AppendError(const Compiler::ResultDesc& previousResult, const std::string& msg)
+    class ScBlob : public Blob
     {
-        Compiler::ResultDesc ret;
-        ret.isText = previousResult.isText;
-        ret.errorWarningMsg = previousResult.errorWarningMsg;
-        if (!ret.errorWarningMsg.empty())
+    public:
+        ScBlob(const void* data, uint32_t size)
+            : data_(reinterpret_cast<const uint8_t*>(data), reinterpret_cast<const uint8_t*>(data) + size)
         {
-            ret.errorWarningMsg += "\n";
         }
-        ret.errorWarningMsg += msg;
-        ret.hasError = true;
 
-        return ret;
+        const void* Data() const override
+        {
+            return data_.data();
+        }
+
+        uint32_t Size() const override
+        {
+            return static_cast<uint32_t>(data_.size());
+        }
+
+    private:
+        std::vector<uint8_t> data_;
+    };
+
+    void AppendError(Compiler::ResultDesc& result, const std::string& msg)
+    {
+        std::string errorMSg;
+        if (result.errorWarningMsg != nullptr)
+        {
+            errorMSg.assign(reinterpret_cast<const char*>(result.errorWarningMsg->Data()), result.errorWarningMsg->Size());
+        }
+        if (!errorMSg.empty())
+        {
+            errorMSg += "\n";
+        }
+        errorMSg += msg;
+        DestroyBlob(result.errorWarningMsg);
+        result.errorWarningMsg = CreateBlob(errorMSg.data(), static_cast<uint32_t>(errorMSg.size()));
+        result.hasError = true;
     }
 
     Compiler::ResultDesc CompileToBinary(const Compiler::SourceDesc& source, ShadingLanguage targetLanguage)
@@ -322,19 +348,21 @@ namespace
         std::vector<std::wstring> dxcDefineStrings;
         // Need to reserve capacity so that small-string optimization does not
         // invalidate the pointers to internal string data while resizing.
-        dxcDefineStrings.reserve(source.defines.size() * 2);
-        for (const auto& define : source.defines)
+        dxcDefineStrings.reserve(source.numDefines * 2);
+        for (size_t i = 0; i < source.numDefines; ++i)
         {
+            const auto& define = source.defines[i];
+
             std::wstring nameUtf16Str;
-            Unicode::UTF8ToUTF16String(define.name.c_str(), &nameUtf16Str);
+            Unicode::UTF8ToUTF16String(define.name, &nameUtf16Str);
             dxcDefineStrings.emplace_back(std::move(nameUtf16Str));
             const wchar_t* nameUtf16 = dxcDefineStrings.back().c_str();
 
             const wchar_t* valueUtf16;
-            if (!define.value.empty())
+            if (define.value != nullptr)
             {
                 std::wstring valueUtf16Str;
-                Unicode::UTF8ToUTF16String(define.value.c_str(), &valueUtf16Str);
+                Unicode::UTF8ToUTF16String(define.value, &valueUtf16Str);
                 dxcDefineStrings.emplace_back(std::move(valueUtf16Str));
                 valueUtf16 = dxcDefineStrings.back().c_str();
             }
@@ -347,24 +375,17 @@ namespace
         }
 
         CComPtr<IDxcBlobEncoding> sourceBlob;
-        IFT(Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(
-            source.source.data(), static_cast<UINT32>(source.source.size()), CP_UTF8, &sourceBlob));
+        IFT(Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(source.source, static_cast<UINT32>(strlen(source.source)),
+                                                                               CP_UTF8, &sourceBlob));
         IFTARG(sourceBlob->GetBufferSize() >= 4);
 
         std::wstring shaderNameUtf16;
-        Unicode::UTF8ToUTF16String(source.fileName.c_str(), &shaderNameUtf16);
+        Unicode::UTF8ToUTF16String(source.fileName, &shaderNameUtf16);
 
         std::wstring entryPointUtf16;
-        Unicode::UTF8ToUTF16String(source.entryPoint.c_str(), &entryPointUtf16);
+        Unicode::UTF8ToUTF16String(source.entryPoint, &entryPointUtf16);
 
-        // clang-format off
-        std::vector<std::wstring> dxcArgStrings =
-        {
-            L"-T", shaderProfile,
-            L"-E", entryPointUtf16,
-        };
-        // clang-format on
-
+        std::vector<std::wstring> dxcArgStrings;
         switch (targetLanguage)
         {
         case ShadingLanguage::Dxil:
@@ -400,13 +421,18 @@ namespace
 
         Compiler::ResultDesc ret;
 
+        ret.target = nullptr;
         ret.isText = false;
+        ret.errorWarningMsg = nullptr;
 
         CComPtr<IDxcBlobEncoding> errors;
         IFT(compileResult->GetErrorBuffer(&errors));
         if (errors != nullptr)
         {
-            ret.errorWarningMsg.assign(reinterpret_cast<const char*>(errors->GetBufferPointer()), errors->GetBufferSize());
+            if (errors->GetBufferSize() > 0)
+            {
+                ret.errorWarningMsg = CreateBlob(errors->GetBufferPointer(), static_cast<uint32_t>(errors->GetBufferSize()));
+            }
             errors = nullptr;
         }
 
@@ -418,9 +444,7 @@ namespace
             compileResult = nullptr;
             if (program != nullptr)
             {
-                const uint8_t* programPtr = reinterpret_cast<const uint8_t*>(program->GetBufferPointer());
-                ret.target.assign(programPtr, programPtr + program->GetBufferSize());
-
+                ret.target = CreateBlob(program->GetBufferPointer(), static_cast<uint32_t>(program->GetBufferSize()));
                 ret.hasError = false;
             }
         }
@@ -432,21 +456,22 @@ namespace
                                        const Compiler::TargetDesc& target)
     {
         assert((target.language != ShadingLanguage::Dxil) && (target.language != ShadingLanguage::SpirV));
-        assert((binaryResult.target.size() & (sizeof(uint32_t) - 1)) == 0);
+        assert((binaryResult.target->Size() & (sizeof(uint32_t) - 1)) == 0);
 
         Compiler::ResultDesc ret;
 
+        ret.target = nullptr;
         ret.errorWarningMsg = binaryResult.errorWarningMsg;
         ret.isText = true;
 
         uint32_t intVersion = 0;
-        if (!target.version.empty())
+        if (target.version != nullptr)
         {
             intVersion = std::stoi(target.version);
         }
 
-        const uint32_t* spirvIr = reinterpret_cast<const uint32_t*>(binaryResult.target.data());
-        const size_t spirvSize = binaryResult.target.size() / sizeof(uint32_t);
+        const uint32_t* spirvIr = reinterpret_cast<const uint32_t*>(binaryResult.target->Data());
+        const size_t spirvSize = binaryResult.target->Size() / sizeof(uint32_t);
 
         std::unique_ptr<spirv_cross::CompilerGLSL> compiler;
         bool combinedImageSamplers = false;
@@ -459,19 +484,23 @@ namespace
                 (source.stage == ShaderStage::DomainShader))
             {
                 // Check https://github.com/KhronosGroup/SPIRV-Cross/issues/121 for details
-                return AppendError(ret, "GS, HS, and DS has not been supported yet.");
+                AppendError(ret, "GS, HS, and DS has not been supported yet.");
+                return ret;
             }
             if ((source.stage == ShaderStage::GeometryShader) && (intVersion < 40))
             {
-                return AppendError(ret, "HLSL shader model earlier than 4.0 doesn't have GS or CS.");
+                AppendError(ret, "HLSL shader model earlier than 4.0 doesn't have GS or CS.");
+                return ret;
             }
             if ((source.stage == ShaderStage::ComputeShader) && (intVersion < 50))
             {
-                return AppendError(ret, "CS in HLSL shader model earlier than 5.0 is not supported.");
+                AppendError(ret, "CS in HLSL shader model earlier than 5.0 is not supported.");
+                return ret;
             }
             if (((source.stage == ShaderStage::HullShader) || (source.stage == ShaderStage::DomainShader)) && (intVersion < 50))
             {
-                return AppendError(ret, "HLSL shader model earlier than 5.0 doesn't have HS or DS.");
+                AppendError(ret, "HLSL shader model earlier than 5.0 doesn't have HS or DS.");
+                return ret;
             }
             compiler = std::make_unique<spirv_cross::CompilerHLSL>(spirvIr, spirvSize);
             break;
@@ -486,7 +515,8 @@ namespace
         case ShadingLanguage::Msl:
             if (source.stage == ShaderStage::GeometryShader)
             {
-                return AppendError(ret, "MSL doesn't have GS.");
+                AppendError(ret, "MSL doesn't have GS.");
+                return ret;
             }
             compiler = std::make_unique<spirv_cross::CompilerMSL>(spirvIr, spirvSize);
             break;
@@ -528,7 +558,7 @@ namespace
         compiler->set_entry_point(source.entryPoint, model);
 
         spirv_cross::CompilerGLSL::Options opts = compiler->get_common_options();
-        if (!target.version.empty())
+        if (target.version != nullptr)
         {
             opts.version = intVersion;
         }
@@ -536,7 +566,8 @@ namespace
         opts.force_temporary = false;
         opts.separate_shader_objects = true;
         opts.flatten_multidimensional_arrays = false;
-        opts.enable_420pack_extension = (target.language == ShadingLanguage::Glsl) && (target.version.empty() || (opts.version >= 420));
+        opts.enable_420pack_extension =
+            (target.language == ShadingLanguage::Glsl) && ((target.version == nullptr) || (opts.version >= 420));
         opts.vulkan_semantics = false;
         opts.vertex.fixup_clipspace = false;
         opts.vertex.flip_vert_y = false;
@@ -547,11 +578,12 @@ namespace
         {
             auto* hlslCompiler = static_cast<spirv_cross::CompilerHLSL*>(compiler.get());
             auto hlslOpts = hlslCompiler->get_hlsl_options();
-            if (!target.version.empty())
+            if (target.version != nullptr)
             {
                 if (opts.version < 30)
                 {
-                    return AppendError(ret, "HLSL shader model earlier than 3.0 is not supported.");
+                    AppendError(ret, "HLSL shader model earlier than 3.0 is not supported.");
+                    return ret;
                 }
                 hlslOpts.shader_model = opts.version;
             }
@@ -568,7 +600,7 @@ namespace
         {
             auto* mslCompiler = static_cast<spirv_cross::CompilerMSL*>(compiler.get());
             auto mslOpts = mslCompiler->get_msl_options();
-            if (!target.version.empty())
+            if (target.version != nullptr)
             {
                 mslOpts.msl_version = opts.version;
             }
@@ -611,12 +643,14 @@ namespace
         try
         {
             const std::string targetStr = compiler->compile();
-            ret.target.assign(targetStr.begin(), targetStr.end());
+            ret.target = CreateBlob(targetStr.data(), static_cast<uint32_t>(targetStr.size()));
             ret.hasError = false;
         }
         catch (spirv_cross::CompilerError& error)
         {
-            ret.errorWarningMsg = error.what();
+            const char* errorMsg = error.what();
+            DestroyBlob(ret.errorWarningMsg);
+            ret.errorWarningMsg = CreateBlob(errorMsg, static_cast<uint32_t>(strlen(errorMsg)));
             ret.hasError = true;
         }
 
@@ -626,39 +660,55 @@ namespace
 
 namespace ShaderConductor
 {
-    Compiler::ResultDesc Compiler::Compile(SourceDesc source, TargetDesc target)
+    Blob::~Blob() = default;
+
+    Blob* CreateBlob(const void* data, uint32_t size)
     {
-        if (source.entryPoint.empty())
+        return new ScBlob(data, size);
+    }
+
+    void DestroyBlob(Blob* blob)
+    {
+        delete blob;
+    }
+
+    Compiler::ResultDesc Compiler::Compile(const SourceDesc& source, const TargetDesc& target)
+    {
+        SourceDesc sourceOverride = source;
+        if (!sourceOverride.entryPoint || (strlen(sourceOverride.entryPoint) == 0))
         {
-            source.entryPoint = "main";
+            sourceOverride.entryPoint = "main";
         }
-        if (!source.loadIncludeCallback)
+        if (!sourceOverride.loadIncludeCallback)
         {
-            source.loadIncludeCallback = DefaultLoadCallback;
+            sourceOverride.loadIncludeCallback = DefaultLoadCallback;
         }
 
         const auto binaryLanguage = target.language == ShadingLanguage::Dxil ? ShadingLanguage::Dxil : ShadingLanguage::SpirV;
-        auto ret = CompileToBinary(source, binaryLanguage);
+        auto ret = CompileToBinary(sourceOverride, binaryLanguage);
 
         if (!ret.hasError && (target.language != binaryLanguage))
         {
-            ret = ConvertBinary(ret, source, target);
+            ret = ConvertBinary(ret, sourceOverride, target);
         }
 
         return ret;
     }
 
-    Compiler::ResultDesc Compiler::Disassemble(DisassembleDesc source)
+    Compiler::ResultDesc Compiler::Disassemble(const DisassembleDesc& source)
     {
         assert((source.language == ShadingLanguage::SpirV) || (source.language == ShadingLanguage::Dxil));
 
         Compiler::ResultDesc ret;
+
+        ret.target = nullptr;
         ret.isText = true;
+        ret.errorWarningMsg = nullptr;
 
         if (source.language == ShadingLanguage::SpirV)
         {
-            const uint32_t* spirvIr = reinterpret_cast<const uint32_t*>(source.binary.data());
-            const size_t spirvSize = source.binary.size() / sizeof(uint32_t);
+            const uint32_t* spirvIr = reinterpret_cast<const uint32_t*>(source.binary);
+            const size_t spirvSize = source.binarySize / sizeof(uint32_t);
 
             spv_context context = spvContextCreate(SPV_ENV_UNIVERSAL_1_3);
             uint32_t options = SPV_BINARY_TO_TEXT_OPTION_NONE | SPV_BINARY_TO_TEXT_OPTION_INDENT | SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES;
@@ -670,14 +720,14 @@ namespace ShaderConductor
 
             if (error)
             {
-                ret.errorWarningMsg = diagnostic->error;
+                ret.errorWarningMsg = CreateBlob(diagnostic->error, static_cast<uint32_t>(strlen(diagnostic->error)));
                 ret.hasError = true;
                 spvDiagnosticDestroy(diagnostic);
             }
             else
             {
-                std::string disassemble = std::string(text->str);
-                ret.target.assign(disassemble.begin(), disassemble.end());
+                const std::string disassemble = text->str;
+                ret.target = CreateBlob(disassemble.data(), static_cast<uint32_t>(disassemble.size()));
                 ret.hasError = false;
             }
 
@@ -686,16 +736,13 @@ namespace ShaderConductor
         else
         {
             CComPtr<IDxcBlobEncoding> blob;
-            CComPtr<IDxcBlobEncoding> pDisassembly;
-            IFT(Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(
-                source.binary.data(), static_cast<UINT32>(source.binary.size()), CP_UTF8, &blob));
-            IFT(Dxcompiler::Instance().Compiler()->Disassemble(blob, &pDisassembly));
+            CComPtr<IDxcBlobEncoding> disassembly;
+            IFT(Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(source.binary, source.binarySize, CP_UTF8, &blob));
+            IFT(Dxcompiler::Instance().Compiler()->Disassemble(blob, &disassembly));
 
-            if (pDisassembly != nullptr)
+            if (disassembly != nullptr)
             {
-                const uint8_t* programPtr = reinterpret_cast<const uint8_t*>(pDisassembly->GetBufferPointer());
-                ret.target.assign(programPtr, programPtr + pDisassembly->GetBufferSize());
-
+                ret.target = CreateBlob(disassembly->GetBufferPointer(), static_cast<uint32_t>(disassembly->GetBufferSize()));
                 ret.hasError = false;
             }
             else

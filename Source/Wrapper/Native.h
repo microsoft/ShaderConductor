@@ -29,6 +29,8 @@
 
 using namespace ShaderConductor;
 
+struct ShaderConductorBlob;
+
 struct SourceDescription
 {
     const char* source;    
@@ -44,27 +46,26 @@ struct TargetDescription
 
 struct ResultDescription
 {   
+    ShaderConductorBlob* target;
     bool isText;
-    char* target;
-    int targetSize;
+
+    ShaderConductorBlob* errorWarningMsg;
     bool hasError;
-    char* errorWarningMsg;
 };
 
 struct DisassembleDescription
 {
     ShadingLanguage language;
-    int binarySize;
     char* binary;
+    int binarySize;
 };
-
-char* binaryArray;
-char* msgArray;
 
 #define DLLEXPORT extern "C" __declspec(dllexport)
 
 DLLEXPORT void Compile(SourceDescription* source, TargetDescription* target, ResultDescription* result);
-
 DLLEXPORT void Disassemble(DisassembleDescription* source, ResultDescription* result);
 
-DLLEXPORT void FreeResources();
+DLLEXPORT ShaderConductorBlob* CreateShaderConductorBlob(const void* data, int size);
+DLLEXPORT void DestroyShaderConductorBlob(ShaderConductorBlob* blob);
+DLLEXPORT const void* GetShaderConductorBlobData(ShaderConductorBlob* blob);
+DLLEXPORT int GetShaderConductorBlobSize(ShaderConductorBlob* blob);

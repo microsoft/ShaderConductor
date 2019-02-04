@@ -65,9 +65,12 @@ int main(int argc, char** argv)
     Compiler::SourceDesc sourceDesc;
     Compiler::TargetDesc targetDesc;
 
-    sourceDesc.fileName = opts["input"].as<std::string>();
+    const auto fileName = opts["input"].as<std::string>();
     const auto targetName = opts["target"].as<std::string>();
-    targetDesc.version = opts["version"].as<std::string>();
+    const auto targetVersion = opts["version"].as<std::string>();
+
+    sourceDesc.fileName = fileName.c_str();
+    targetDesc.version = targetVersion.c_str();
 
     const auto stageName = opts["stage"].as<std::string>();
     if (stageName == "vs")
@@ -100,7 +103,8 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    sourceDesc.entryPoint = opts["entry"].as<std::string>();
+    const auto entryPoint = opts["entry"].as<std::string>();
+    sourceDesc.entryPoint = entryPoint.c_str();
 
     if (targetName == "dxil")
     {
@@ -138,13 +142,14 @@ int main(int argc, char** argv)
         static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl" };
         static_assert(sizeof(extMap) / sizeof(extMap[0]) == static_cast<uint32_t>(ShadingLanguage::NumShadingLanguages),
                       "extMap doesn't match with the number of shading languages.");
-        outputName = sourceDesc.fileName + "." + extMap[static_cast<uint32_t>(targetDesc.language)];
+        outputName = fileName + "." + extMap[static_cast<uint32_t>(targetDesc.language)];
     }
     else
     {
         outputName = opts["output"].as<std::string>();
     }
 
+    std::string source;
     {
         std::ifstream inputFile(sourceDesc.fileName, std::ios_base::binary);
         if (!inputFile)
@@ -154,20 +159,23 @@ int main(int argc, char** argv)
         }
 
         inputFile.seekg(0, std::ios::end);
-        sourceDesc.source.resize(inputFile.tellg());
+        source.resize(inputFile.tellg());
         inputFile.seekg(0, std::ios::beg);
-        inputFile.read(&sourceDesc.source[0], sourceDesc.source.size());
+        inputFile.read(&source[0], source.size());
     }
+    sourceDesc.source = source.c_str();
 
     try
     {
-        const auto result = Compiler::Compile(std::move(sourceDesc), std::move(targetDesc));
+        const auto result = Compiler::Compile(sourceDesc, targetDesc);
 
-        if (!result.errorWarningMsg.empty())
+        if (result.errorWarningMsg != nullptr)
         {
-            std::cerr << "Error or warning form shader compiler: " << std::endl << result.errorWarningMsg << std::endl;
+            const char* msg = reinterpret_cast<const char*>(result.errorWarningMsg->Data());
+            std::cerr << "Error or warning form shader compiler: " << std::endl
+                      << std::string(msg, msg + result.errorWarningMsg->Size()) << std::endl;
         }
-        if (!result.target.empty())
+        if (result.target != nullptr)
         {
             std::ofstream outputFile(outputName, std::ios_base::binary);
             if (!outputFile)
@@ -176,10 +184,13 @@ int main(int argc, char** argv)
                 return 1;
             }
 
-            outputFile.write(reinterpret_cast<const char*>(result.target.data()), result.target.size());
+            outputFile.write(reinterpret_cast<const char*>(result.target->Data()), result.target->Size());
 
             std::cout << "The compiled file is saved to " << outputName << std::endl;
         }
+
+        DestroyBlob(result.errorWarningMsg);
+        DestroyBlob(result.target);
     }
     catch (std::exception& ex)
     {

@@ -29,22 +29,15 @@
 
 using namespace ShaderConductor;
 
-char* CopyString(const char* source)
-{
-    size_t sourceLength = strlen(source);
-    
-    msgArray = new char[sourceLength + 1];
-    strncpy_s(msgArray, sourceLength + 1, source, sourceLength);
-
-    return msgArray;
-}
-
 void Compile(SourceDescription* source, TargetDescription* target, ResultDescription* result)
 {
     Compiler::SourceDesc sourceDesc;
     sourceDesc.entryPoint = source->entryPoint;
     sourceDesc.source = source->source;
     sourceDesc.stage = source->stage;
+    sourceDesc.fileName = nullptr;
+    sourceDesc.defines = nullptr;
+    sourceDesc.numDefines = 0;
 
     Compiler::TargetDesc targetDesc;
     targetDesc.language = target->shadingLanguage;
@@ -52,20 +45,15 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
 
     try
     {
-        const auto translation = Compiler::Compile(std::move(sourceDesc), std::move(targetDesc));
+        const auto translation = Compiler::Compile(sourceDesc, targetDesc);
 
-        if (!translation.errorWarningMsg.empty())
+        if (translation.errorWarningMsg != nullptr)
         {
-            const char* errorData = translation.errorWarningMsg.c_str();
-            result->errorWarningMsg = CopyString(errorData);
+            result->errorWarningMsg = reinterpret_cast<ShaderConductorBlob*>(translation.errorWarningMsg);
         }
-        if (!translation.target.empty())
+        if (translation.target != nullptr)
         {
-            result->targetSize = static_cast<int>(translation.target.size());
-            binaryArray = new char[result->targetSize];
-            std::copy(translation.target.data(), translation.target.data() + result->targetSize, binaryArray);
-
-            result->target = binaryArray;
+            result->target = reinterpret_cast<ShaderConductorBlob*>(translation.target);
         }
 
         result->hasError = translation.hasError;
@@ -74,39 +62,49 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
     catch (std::exception& ex)
     {
         const char* exception = ex.what();
-        result->errorWarningMsg = CopyString(exception);
+        result->errorWarningMsg = CreateShaderConductorBlob(exception, static_cast<uint32_t>(strlen(exception)));
         result->hasError = true;
     }
 }
 
 void Disassemble(DisassembleDescription* source, ResultDescription* result)
 {
-    Compiler::DisassembleDesc disasembleSource;
-    disasembleSource.language = source->language;
-    disasembleSource.binary = std::vector<uint8_t>(source->binary, source->binary + source->binarySize);
+    Compiler::DisassembleDesc disassembleSource;
+    disassembleSource.language = source->language;
+    disassembleSource.binary = reinterpret_cast<uint8_t*>(source->binary);
+    disassembleSource.binarySize = source->binarySize;
 
-    const auto disassembleResult = Compiler::Disassemble(disasembleSource);
+    const auto disassembleResult = Compiler::Disassemble(disassembleSource);
 
-    if (!disassembleResult.errorWarningMsg.empty())
+    if (disassembleResult.errorWarningMsg != nullptr)
     {
-        const char* errorData = disassembleResult.errorWarningMsg.c_str();
-        result->errorWarningMsg = CopyString(errorData);
+        result->errorWarningMsg = reinterpret_cast<ShaderConductorBlob*>(disassembleResult.errorWarningMsg);
     }
-    if (!disassembleResult.target.empty())
+    if (disassembleResult.target != nullptr)
     {
-        result->targetSize = static_cast<int>(disassembleResult.target.size());
-        binaryArray = new char[result->targetSize];
-        std::copy(disassembleResult.target.data(), disassembleResult.target.data() + result->targetSize, binaryArray);
-
-        result->target = binaryArray;      
+        result->target = reinterpret_cast<ShaderConductorBlob*>(disassembleResult.target);
     }
 
     result->hasError = disassembleResult.hasError;
     result->isText = disassembleResult.isText;
 }
 
-void FreeResources()
+ShaderConductorBlob* CreateShaderConductorBlob(const void* data, int size)
 {
-    delete[] binaryArray;
-    delete[] msgArray;
+    return reinterpret_cast<ShaderConductorBlob*>(ShaderConductor::CreateBlob(data, size));
+}
+
+void DestroyShaderConductorBlob(ShaderConductorBlob* blob)
+{
+    DestroyBlob(reinterpret_cast<Blob*>(blob));
+}
+
+const void* GetShaderConductorBlobData(ShaderConductorBlob* blob)
+{
+    return reinterpret_cast<Blob*>(blob)->Data();
+}
+
+int GetShaderConductorBlobSize(ShaderConductorBlob* blob)
+{
+    return reinterpret_cast<Blob*>(blob)->Size();
 }
