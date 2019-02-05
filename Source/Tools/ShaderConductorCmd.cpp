@@ -167,7 +167,7 @@ int main(int argc, char** argv)
 
     try
     {
-        const auto result = Compiler::Compile(sourceDesc, targetDesc);
+        const auto result = Compiler::Compile(sourceDesc, {}, targetDesc);
 
         if (result.errorWarningMsg != nullptr)
         {

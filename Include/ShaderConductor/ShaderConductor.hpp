@@ -100,6 +100,38 @@ namespace ShaderConductor
     class SC_API Compiler
     {
     public:
+        struct ShaderModel
+        {
+            uint8_t major_ver : 6;
+            uint8_t minor_ver : 2;
+
+            uint32_t FullVersion() const noexcept
+            {
+                return (major_ver << 2) | minor_ver;
+            }
+
+            bool operator<(const ShaderModel& other) const noexcept
+            {
+                return this->FullVersion() < other.FullVersion();
+            }
+            bool operator==(const ShaderModel& other) const noexcept
+            {
+                return this->FullVersion() == other.FullVersion();
+            }
+            bool operator>(const ShaderModel& other) const noexcept
+            {
+                return other < *this;
+            }
+            bool operator<=(const ShaderModel& other) const noexcept
+            {
+                return (*this < other) || (*this == other);
+            }
+            bool operator>=(const ShaderModel& other) const noexcept
+            {
+                return (*this > other) || (*this == other);
+            }
+        };
+
         struct SourceDesc
         {
             const char* source;
@@ -109,6 +141,17 @@ namespace ShaderConductor
             const MacroDefine* defines;
             uint32_t numDefines;
             std::function<Blob*(const char* includeName)> loadIncludeCallback;
+        };
+
+        struct Options
+        {
+            bool packMatricesInRowMajor = true; // Experimental: Decide how a matrix get packed
+            bool enable16bitTypes = false; // Enable 16-bit types, such as half, uint16_t. Requires shader model 6.2+
+            bool enableDebugInfo = false; // Embed debug info into the binary
+            bool disableOptimizations = false; // Force to turn off optimizations. Ignore optimizationLevel below.
+
+            int optimizationLevel = 3; // 0 to 3, no optimization to most optimization
+            ShaderModel shaderModel = { 6, 0 };
         };
 
         struct TargetDesc
@@ -134,7 +177,7 @@ namespace ShaderConductor
         };
 
     public:
-        static ResultDesc Compile(const SourceDesc& source, const TargetDesc& target);
+        static ResultDesc Compile(const SourceDesc& source, const Options& options, const TargetDesc& target);
         static ResultDesc Disassemble(const DisassembleDesc& source);
     };
 } // namespace ShaderConductor

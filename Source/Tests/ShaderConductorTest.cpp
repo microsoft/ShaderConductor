@@ -91,13 +91,14 @@ namespace
         }
     }
 
-    void HlslToAnyTest(const std::string& name, const Compiler::SourceDesc& source, const Compiler::TargetDesc& target, bool expectSuccess)
+    void HlslToAnyTest(const std::string& name, const Compiler::SourceDesc& source, const Compiler::Options& options,
+                       const Compiler::TargetDesc& target, bool expectSuccess)
     {
         static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl" };
         static_assert(sizeof(extMap) / sizeof(extMap[0]) == static_cast<uint32_t>(ShadingLanguage::NumShadingLanguages),
                       "extMap doesn't match with the number of shading languages.");
 
-        const auto result = Compiler::Compile(source, target);
+        const auto result = Compiler::Compile(source, options, target);
 
         if (expectSuccess)
         {
@@ -145,7 +146,7 @@ namespace
             }
         }
 
-        void RunTests(ShadingLanguage targetSl)
+        void RunTests(ShadingLanguage targetSl, const Compiler::Options& options = {})
         {
             for (const auto& combination : m_combinations)
             {
@@ -153,7 +154,8 @@ namespace
                 {
                     if (std::get<1>(target).language == targetSl)
                     {
-                        HlslToAnyTest(std::get<0>(combination), std::get<1>(combination), std::get<1>(target), std::get<0>(target));
+                        HlslToAnyTest(std::get<0>(combination), std::get<1>(combination), options, std::get<1>(target),
+                                      std::get<0>(target));
                     }
                 }
             }
@@ -404,6 +406,21 @@ namespace
         RunTests(ShadingLanguage::Glsl);
     }
 
+    TEST_F(VertexShaderTest, ToGlslColumnMajor)
+    {
+        const std::string fileName = TEST_DATA_DIR "Input/Transform_VS.hlsl";
+
+        std::vector<uint8_t> input = LoadFile(fileName, true);
+        TrimTailingZeros(&input);
+        const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+
+        Compiler::Options options;
+        options.packMatricesInRowMajor = false;
+
+        HlslToAnyTest("Transform_VS_ColumnMajor", { source.c_str(), fileName.c_str(), nullptr, ShaderStage::VertexShader }, options,
+                      { ShadingLanguage::Glsl, "300" }, true);
+    }
+
     TEST_F(VertexShaderTest, ToEssl)
     {
         RunTests(ShadingLanguage::Essl);
@@ -528,7 +545,7 @@ namespace
         const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
 
         const auto result =
-            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
+            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, {}, { ShadingLanguage::Glsl, "30" });
 
         EXPECT_FALSE(result.hasError);
         EXPECT_EQ(result.errorWarningMsg, nullptr);
@@ -550,7 +567,7 @@ namespace
         const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
 
         const auto result =
-            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
+            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, {}, { ShadingLanguage::Glsl, "30" });
 
         EXPECT_TRUE(result.hasError);
         const char* errorStr = reinterpret_cast<const char*>(result.errorWarningMsg->Data());
@@ -569,7 +586,7 @@ namespace
         const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
 
         const auto result =
-            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, { ShadingLanguage::Glsl, "30" });
+            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, {}, { ShadingLanguage::Glsl, "30" });
 
         EXPECT_FALSE(result.hasError);
         EXPECT_EQ(result.errorWarningMsg, nullptr);

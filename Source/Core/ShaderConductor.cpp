@@ -308,7 +308,8 @@ namespace
         result.hasError = true;
     }
 
-    Compiler::ResultDesc CompileToBinary(const Compiler::SourceDesc& source, ShadingLanguage targetLanguage)
+    Compiler::ResultDesc CompileToBinary(const Compiler::SourceDesc& source, const Compiler::Options& options,
+                                         ShadingLanguage targetLanguage)
     {
         assert((targetLanguage == ShadingLanguage::Dxil) || (targetLanguage == ShadingLanguage::SpirV));
 
@@ -342,7 +343,10 @@ namespace
         default:
             llvm_unreachable("Invalid shader stage.");
         }
-        shaderProfile += L"_6_0";
+        shaderProfile.push_back(L'_');
+        shaderProfile.push_back(L'0' + options.shaderModel.major_ver);
+        shaderProfile.push_back(L'_');
+        shaderProfile.push_back(L'0' + options.shaderModel.minor_ver);
 
         std::vector<DxcDefine> dxcDefines;
         std::vector<std::wstring> dxcDefineStrings;
@@ -386,6 +390,51 @@ namespace
         Unicode::UTF8ToUTF16String(source.entryPoint, &entryPointUtf16);
 
         std::vector<std::wstring> dxcArgStrings;
+
+        // HLSL matrices are translated into SPIR-V OpTypeMatrixs in a transposed manner,
+        // See also https://antiagainst.github.io/post/hlsl-for-vulkan-matrices/
+        if (options.packMatricesInRowMajor)
+        {
+            dxcArgStrings.push_back(L"-Zpc");
+        }
+        else
+        {
+            dxcArgStrings.push_back(L"-Zpr");
+        }
+
+        if (options.enable16bitTypes)
+        {
+            if (options.shaderModel >= Compiler::ShaderModel{ 6, 2 })
+            {
+                dxcArgStrings.push_back(L"-enable-16bit-types");
+            }
+            else
+            {
+                throw std::runtime_error("16-bit types requires shader model 6.2 or up.");
+            }
+        }
+
+        if (options.enableDebugInfo)
+        {
+            dxcArgStrings.push_back(L"-Zi");
+        }
+
+        if (options.disableOptimizations)
+        {
+            dxcArgStrings.push_back(L"-Od");
+        }
+        else
+        {
+            if (options.optimizationLevel < 4)
+            {
+                dxcArgStrings.push_back(std::wstring(L"-O") + static_cast<wchar_t>(L'0' + options.optimizationLevel));
+            }
+            else
+            {
+                llvm_unreachable("Invalid optimization level.");
+            }
+        }
+
         switch (targetLanguage)
         {
         case ShadingLanguage::Dxil:
@@ -672,7 +721,7 @@ namespace ShaderConductor
         delete blob;
     }
 
-    Compiler::ResultDesc Compiler::Compile(const SourceDesc& source, const TargetDesc& target)
+    Compiler::ResultDesc Compiler::Compile(const SourceDesc& source, const Options& options, const TargetDesc& target)
     {
         SourceDesc sourceOverride = source;
         if (!sourceOverride.entryPoint || (strlen(sourceOverride.entryPoint) == 0))
@@ -685,7 +734,7 @@ namespace ShaderConductor
         }
 
         const auto binaryLanguage = target.language == ShadingLanguage::Dxil ? ShadingLanguage::Dxil : ShadingLanguage::SpirV;
-        auto ret = CompileToBinary(sourceOverride, binaryLanguage);
+        auto ret = CompileToBinary(sourceOverride, options, binaryLanguage);
 
         if (!ret.hasError && (target.language != binaryLanguage))
         {

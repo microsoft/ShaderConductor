@@ -39,13 +39,15 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
     sourceDesc.defines = nullptr;
     sourceDesc.numDefines = 0;
 
+    Compiler::Options options;
+
     Compiler::TargetDesc targetDesc;
     targetDesc.language = target->shadingLanguage;
     targetDesc.version = target->version;
 
     try
     {
-        const auto translation = Compiler::Compile(sourceDesc, targetDesc);
+        const auto translation = Compiler::Compile(sourceDesc, options, targetDesc);
 
         if (translation.errorWarningMsg != nullptr)
         {
