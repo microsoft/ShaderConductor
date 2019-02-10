@@ -723,6 +723,14 @@ namespace ShaderConductor
 
     Compiler::ResultDesc Compiler::Compile(const SourceDesc& source, const Options& options, const TargetDesc& target)
     {
+        ResultDesc result;
+        Compiler::Compile(source, options, &target, 1, &result);
+        return result;
+    }
+
+    void Compiler::Compile(const SourceDesc& source, const Options& options, const TargetDesc* targets, uint32_t numTargets,
+                           ResultDesc* results)
+    {
         SourceDesc sourceOverride = source;
         if (!sourceOverride.entryPoint || (strlen(sourceOverride.entryPoint) == 0))
         {
@@ -733,15 +741,61 @@ namespace ShaderConductor
             sourceOverride.loadIncludeCallback = DefaultLoadCallback;
         }
 
-        const auto binaryLanguage = target.language == ShadingLanguage::Dxil ? ShadingLanguage::Dxil : ShadingLanguage::SpirV;
-        auto ret = CompileToBinary(sourceOverride, options, binaryLanguage);
-
-        if (!ret.hasError && (target.language != binaryLanguage))
+        bool hasDxil = false;
+        bool hasSpirV = false;
+        for (uint32_t i = 0; i < numTargets; ++i)
         {
-            ret = ConvertBinary(ret, sourceOverride, target);
+            if (targets[i].language == ShadingLanguage::Dxil)
+            {
+                hasDxil = true;
+            }
+            else
+            {
+                hasSpirV = true;
+            }
         }
 
-        return ret;
+        ResultDesc dxilBinaryResult;
+        if (hasDxil)
+        {
+            dxilBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::Dxil);
+        }
+
+        ResultDesc spirvBinaryResult;
+        if (hasSpirV)
+        {
+            spirvBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::SpirV);
+        }
+
+        for (uint32_t i = 0; i < numTargets; ++i)
+        {
+            ResultDesc& binaryResult = targets[i].language == ShadingLanguage::Dxil ? dxilBinaryResult : spirvBinaryResult;
+            if (!binaryResult.hasError)
+            {
+                switch (targets[i].language)
+                {
+                case ShadingLanguage::Dxil:
+                case ShadingLanguage::SpirV:
+                    results[i] = binaryResult;
+                    break;
+
+                case ShadingLanguage::Hlsl:
+                case ShadingLanguage::Glsl:
+                case ShadingLanguage::Essl:
+                case ShadingLanguage::Msl:
+                    results[i] = ConvertBinary(binaryResult, sourceOverride, targets[i]);
+                    break;
+
+                default:
+                    llvm_unreachable("Invalid shading language.");
+                    break;
+                }
+            }
+            else
+            {
+                results[i] = binaryResult;
+            }
+        }
     }
 
     Compiler::ResultDesc Compiler::Disassemble(const DisassembleDesc& source)

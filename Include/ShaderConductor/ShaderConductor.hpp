@@ -178,6 +178,8 @@ namespace ShaderConductor
 
     public:
         static ResultDesc Compile(const SourceDesc& source, const Options& options, const TargetDesc& target);
+        static void Compile(const SourceDesc& source, const Options& options, const TargetDesc* targets, uint32_t numTargets,
+                            ResultDesc* results);
         static ResultDesc Disassemble(const DisassembleDesc& source);
     };
 } // namespace ShaderConductor
