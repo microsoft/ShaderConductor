@@ -755,13 +755,13 @@ namespace ShaderConductor
             }
         }
 
-        ResultDesc dxilBinaryResult;
+        ResultDesc dxilBinaryResult{};
         if (hasDxil)
         {
             dxilBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::Dxil);
         }
 
-        ResultDesc spirvBinaryResult;
+        ResultDesc spirvBinaryResult{};
         if (hasSpirV)
         {
             spirvBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::SpirV);
@@ -769,7 +769,15 @@ namespace ShaderConductor
 
         for (uint32_t i = 0; i < numTargets; ++i)
         {
-            ResultDesc& binaryResult = targets[i].language == ShadingLanguage::Dxil ? dxilBinaryResult : spirvBinaryResult;
+            ResultDesc binaryResult = targets[i].language == ShadingLanguage::Dxil ? dxilBinaryResult : spirvBinaryResult;
+            if (binaryResult.target)
+            {
+                binaryResult.target = CreateBlob(binaryResult.target->Data(), binaryResult.target->Size());
+            }
+            if (binaryResult.errorWarningMsg)
+            {
+                binaryResult.errorWarningMsg = CreateBlob(binaryResult.errorWarningMsg->Data(), binaryResult.errorWarningMsg->Size());
+            }
             if (!binaryResult.hasError)
             {
                 switch (targets[i].language)
@@ -795,6 +803,17 @@ namespace ShaderConductor
             {
                 results[i] = binaryResult;
             }
+        }
+
+        if (hasDxil)
+        {
+            DestroyBlob(dxilBinaryResult.target);
+            DestroyBlob(dxilBinaryResult.errorWarningMsg);
+        }
+        if (hasSpirV)
+        {
+            DestroyBlob(spirvBinaryResult.target);
+            DestroyBlob(spirvBinaryResult.errorWarningMsg);
         }
     }
 
