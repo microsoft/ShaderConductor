@@ -62,15 +62,15 @@ int main(int argc, char** argv)
 
     using namespace ShaderConductor;
 
-    Compiler::SourceDesc sourceDesc;
-    Compiler::TargetDesc targetDesc;
+    Compiler::SourceDesc sourceDesc{};
+    Compiler::TargetDesc targetDesc{};
 
     const auto fileName = opts["input"].as<std::string>();
     const auto targetName = opts["target"].as<std::string>();
     const auto targetVersion = opts["version"].as<std::string>();
 
     sourceDesc.fileName = fileName.c_str();
-    targetDesc.version = targetVersion.c_str();
+    targetDesc.version = targetVersion.empty() ? nullptr : targetVersion.c_str();
 
     const auto stageName = opts["stage"].as<std::string>();
     if (stageName == "vs")
@@ -164,6 +164,8 @@ int main(int argc, char** argv)
         inputFile.read(&source[0], source.size());
     }
     sourceDesc.source = source.c_str();
+
+    // TODO: Support macro definition from command line
 
     try
     {
