@@ -19,8 +19,8 @@ layout(location = 5) patch in vec3 in_var_POSITION6;
 layout(location = 6) patch in vec3 in_var_POSITION7;
 layout(location = 7) patch in vec3 in_var_POSITION8;
 layout(location = 0) patch in vec3 in_var_CENTER;
-layout(location = 1) in vec3 in_var_POSITION[3];
-layout(location = 8) in vec2 in_var_TEXCOORD[3];
+layout(location = 1) in vec3 in_var_POSITION[];
+layout(location = 8) in vec2 in_var_TEXCOORD[];
 layout(location = 0) out vec2 out_var_TEXCOORD0;
 
 void main()
