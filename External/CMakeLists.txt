@@ -8,9 +8,9 @@ endif()
 
 set(cxxopts_REV "3f2d70530219e09fe7e563f86126b0d3b228a60d")
 set(googletest_REV "440527a61e1c91188195f7de212c63c77e8f0a45")
-set(SPIRV_Headers_REV "8bea0a266ac9b718aa0818d9e3a47c0b77c2cb23")
-set(SPIRV_Tools_REV "e2279da7148d19bd21c6d47ffc96ee4176f43dba")
-set(DirectXShaderCompiler_REV "7eceecf02b5d97eea4fca842b52ade400876b78c")
+set(SPIRV_Headers_REV "d3752ea20886d2fceb6cecda3c2b146a8f22d214")
+set(SPIRV_Tools_REV "5fb83a97087d4171c45fc3f0dcbaa5c43e195536")
+set(DirectXShaderCompiler_REV "657604586cb1535ac6965c17ff20d1c77c7f83a0")
 set(SPIRV_Cross_REV "5dde82654c8e851eacee6c35483606b85a12b467")
 
 function(UpdateExternalLib name url rev)
