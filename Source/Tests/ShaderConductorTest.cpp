@@ -52,28 +52,14 @@ namespace
             ret.resize(file.tellg());
             file.seekg(0, std::ios::beg);
             file.read(reinterpret_cast<char*>(ret.data()), ret.size());
+            ret.resize(file.gcount());
         }
         return ret;
-    }
-
-    void TrimTailingZeros(std::vector<uint8_t>* data)
-    {
-        assert(data != nullptr);
-
-        while (!data->empty() && (data->back() == '\0'))
-        {
-            data->pop_back();
-        }
     }
 
     void CompareWithExpected(const std::vector<uint8_t>& actual, bool isText, const std::string& compareName)
     {
         std::vector<uint8_t> expected = LoadFile(TEST_DATA_DIR "Expected/" + compareName, isText);
-        if (isText)
-        {
-            TrimTailingZeros(&expected);
-        }
-
         if (expected != actual)
         {
             if (!actual.empty())
@@ -149,7 +135,6 @@ namespace
                 source.fileName = std::get<2>(src).c_str();
 
                 std::vector<uint8_t> input = LoadFile(source.fileName, true);
-                TrimTailingZeros(&input);
                 std::get<3>(src) = std::string(reinterpret_cast<char*>(input.data()), input.size());
                 source.source = std::get<3>(src).c_str();
             }
@@ -384,7 +369,6 @@ namespace
         const std::string fileName = TEST_DATA_DIR "Input/Transform_VS.hlsl";
 
         std::vector<uint8_t> input = LoadFile(fileName, true);
-        TrimTailingZeros(&input);
         const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
 
         Compiler::Options options;
@@ -514,7 +498,6 @@ namespace
         const std::string fileName = TEST_DATA_DIR "Input/IncludeExist.hlsl";
 
         std::vector<uint8_t> input = LoadFile(fileName, true);
-        TrimTailingZeros(&input);
         const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
 
         const auto result =
@@ -536,7 +519,6 @@ namespace
         const std::string fileName = TEST_DATA_DIR "Input/IncludeNotExist.hlsl";
 
         std::vector<uint8_t> input = LoadFile(fileName, true);
-        TrimTailingZeros(&input);
         const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
 
         const auto result =
@@ -555,7 +537,6 @@ namespace
         const std::string fileName = TEST_DATA_DIR "Input/IncludeEmptyHeader.hlsl";
 
         std::vector<uint8_t> input = LoadFile(fileName, true);
-        TrimTailingZeros(&input);
         const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
 
         const auto result =

@@ -257,10 +257,7 @@ namespace
             ret.resize(includeFile.tellg());
             includeFile.seekg(0, std::ios::beg);
             includeFile.read(ret.data(), ret.size());
-            while (!ret.empty() && (ret.back() == '\0'))
-            {
-                ret.pop_back();
-            }
+            ret.resize(includeFile.gcount());
         }
         else
         {
