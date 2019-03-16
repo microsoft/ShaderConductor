@@ -568,7 +568,6 @@ namespace
                                               { ShadingLanguage::Glsl, "30" });
 
         EXPECT_FALSE(result.hasError);
-        EXPECT_EQ(result.errorWarningMsg, nullptr);
         EXPECT_TRUE(result.isText);
 
         const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
@@ -580,7 +579,7 @@ namespace
 
     TEST(HalfDataTypeTest, HalfOutParam)
     {
-        const std::string fileName = TEST_DATA_DIR "Input/FailedHalfDataType.hlsl";
+        const std::string fileName = TEST_DATA_DIR "Input/HalfDataType.hlsl";
 
         std::vector<uint8_t> input = LoadFile(fileName, true);
         const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
@@ -592,10 +591,11 @@ namespace
         const auto result = Compiler::Compile({ source.c_str(), fileName.c_str(), "HalfOutParamPS", ShaderStage::PixelShader }, option,
             { ShadingLanguage::Glsl, "30" });
 
-        // DXC bug #1914
-        EXPECT_TRUE(result.hasError);
-        const char* errorStr = reinterpret_cast<const char*>(result.errorWarningMsg->Data());
-        EXPECT_GE(std::string(errorStr, errorStr + result.errorWarningMsg->Size()).find("fatal error: generated SPIR-V is invalid:"), 0);
+        EXPECT_FALSE(result.hasError);
+        EXPECT_TRUE(result.isText);
+
+        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
+        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, "HalfOutParamPS.glsl");
 
         DestroyBlob(result.errorWarningMsg);
         DestroyBlob(result.target);
