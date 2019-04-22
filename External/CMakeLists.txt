@@ -8,10 +8,10 @@ endif()
 
 set(cxxopts_REV "3f2d70530219e09fe7e563f86126b0d3b228a60d")
 set(googletest_REV "440527a61e1c91188195f7de212c63c77e8f0a45")
-set(SPIRV_Headers_REV "d3752ea20886d2fceb6cecda3c2b146a8f22d214")
-set(SPIRV_Tools_REV "5fb83a97087d4171c45fc3f0dcbaa5c43e195536")
-set(DirectXShaderCompiler_REV "b2b9185ca5bd9fc58b272f2929131b4f4f4adb7d")
-set(SPIRV_Cross_REV "5dde82654c8e851eacee6c35483606b85a12b467")
+set(SPIRV_Headers_REV "111a25e4ae45e2b4d7c18415e1d6884712b958c4")
+set(SPIRV_Tools_REV "12e4a7b649e6fe28683de9fc352200c82948a1f0")
+set(DirectXShaderCompiler_REV "850c8d36761b2c45ac752b3747c37940db9c64f9")
+set(SPIRV_Cross_REV "942273dc7b107d4f0c2cf3449ae306525e1cbae7")
 
 function(UpdateExternalLib name url rev)
     set(need_checkout FALSE)
@@ -70,7 +70,7 @@ foreach(target
     "SPIRV-Tools-link" "SPIRV-Tools-shared"
     "spirv-tools-vimsyntax")
     get_target_property(vsFolder ${target} FOLDER)
-    set_target_properties(${target} PROPERTIES FOLDER "External/SPIRV-Tools/%{vsFolder}")
+    set_target_properties(${target} PROPERTIES FOLDER "External/SPIRV-Tools/${vsFolder}")
 endforeach()
 
 set(ENABLE_SPIRV_CODEGEN ON CACHE BOOL "" FORCE)
