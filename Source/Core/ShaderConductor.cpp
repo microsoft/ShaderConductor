@@ -441,7 +441,8 @@ namespace
         case ShadingLanguage::Hlsl:
         case ShadingLanguage::Glsl:
         case ShadingLanguage::Essl:
-        case ShadingLanguage::Msl:
+        case ShadingLanguage::Msl_macOS:
+        case ShadingLanguage::Msl_iOS:
             dxcArgStrings.push_back(L"-spirv");
             break;
 
@@ -558,7 +559,8 @@ namespace
             buildDummySampler = true;
             break;
 
-        case ShadingLanguage::Msl:
+        case ShadingLanguage::Msl_macOS:
+        case ShadingLanguage::Msl_iOS:
             if (source.stage == ShaderStage::GeometryShader)
             {
                 AppendError(ret, "MSL doesn't have GS.");
@@ -642,7 +644,7 @@ namespace
 
             hlslCompiler->set_hlsl_options(hlslOpts);
         }
-        else if (target.language == ShadingLanguage::Msl)
+        else if ((target.language == ShadingLanguage::Msl_macOS) || (target.language == ShadingLanguage::Msl_iOS))
         {
             auto* mslCompiler = static_cast<spirv_cross::CompilerMSL*>(compiler.get());
             auto mslOpts = mslCompiler->get_msl_options();
@@ -651,7 +653,26 @@ namespace
                 mslOpts.msl_version = opts.version;
             }
             mslOpts.swizzle_texture_samples = false;
+            mslOpts.platform = (target.language == ShadingLanguage::Msl_iOS) ? spirv_cross::CompilerMSL::Options::iOS
+                                                                             : spirv_cross::CompilerMSL::Options::macOS;
+
             mslCompiler->set_msl_options(mslOpts);
+
+            const auto& resources = mslCompiler->get_shader_resources();
+
+            uint32_t textureBinding = 0;
+            for (const auto& image : resources.separate_images)
+            {
+                mslCompiler->set_decoration(image.id, spv::DecorationBinding, textureBinding);
+                ++textureBinding;
+            }
+
+            uint32_t samplerBinding = 0;
+            for (const auto& sampler : resources.separate_samplers)
+            {
+                mslCompiler->set_decoration(sampler.id, spv::DecorationBinding, samplerBinding);
+                ++samplerBinding;
+            }
         }
 
         if (buildDummySampler)
@@ -787,7 +808,8 @@ namespace ShaderConductor
                 case ShadingLanguage::Hlsl:
                 case ShadingLanguage::Glsl:
                 case ShadingLanguage::Essl:
-                case ShadingLanguage::Msl:
+                case ShadingLanguage::Msl_macOS:
+                case ShadingLanguage::Msl_iOS:
                     results[i] = ConvertBinary(binaryResult, sourceOverride, targets[i]);
                     break;
 

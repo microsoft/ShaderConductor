@@ -74,7 +74,8 @@ namespace ShaderConductor
         Hlsl,
         Glsl,
         Essl,
-        Msl,
+        Msl_macOS,
+        Msl_iOS,
 
         NumShadingLanguages,
     };

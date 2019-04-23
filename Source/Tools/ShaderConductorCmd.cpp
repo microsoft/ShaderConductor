@@ -47,7 +47,7 @@ int main(int argc, char** argv)
         ("E,entry", "Entry point of the shader", cxxopts::value<std::string>()->default_value("main"))
         ("I,input", "Input file name", cxxopts::value<std::string>())("O,output", "Output file name", cxxopts::value<std::string>())
         ("S,stage", "Shader stage: vs, ps, gs, hs, ds, cs", cxxopts::value<std::string>())
-        ("T,target", "Target shading language: dxil, spirv, hlsl, glsl, essl, msl", cxxopts::value<std::string>()->default_value("dxil"))
+        ("T,target", "Target shading language: dxil, spirv, hlsl, glsl, essl, msl_macos, msl_ios", cxxopts::value<std::string>()->default_value("dxil"))
         ("V,version", "The version of target shading language", cxxopts::value<std::string>()->default_value(""));
     // clang-format on
 
@@ -126,9 +126,13 @@ int main(int argc, char** argv)
     {
         targetDesc.language = ShadingLanguage::Essl;
     }
-    else if (targetName == "msl")
+    else if (targetName == "msl_macos")
     {
-        targetDesc.language = ShadingLanguage::Msl;
+        targetDesc.language = ShadingLanguage::Msl_macOS;
+    }
+    else if (targetName == "msl_ios")
+    {
+        targetDesc.language = ShadingLanguage::Msl_iOS;
     }
     else
     {
@@ -139,7 +143,7 @@ int main(int argc, char** argv)
     std::string outputName;
     if (opts.count("output") == 0)
     {
-        static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl" };
+        static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl", "msl" };
         static_assert(sizeof(extMap) / sizeof(extMap[0]) == static_cast<uint32_t>(ShadingLanguage::NumShadingLanguages),
                       "extMap doesn't match with the number of shading languages.");
         outputName = fileName + "." + extMap[static_cast<uint32_t>(targetDesc.language)];

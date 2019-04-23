@@ -80,7 +80,7 @@ namespace
     void HlslToAnyTest(const std::string& name, const Compiler::SourceDesc& source, const Compiler::Options& options,
                        const std::vector<Compiler::TargetDesc>& targets, const std::vector<bool>& expectSuccessFlags)
     {
-        static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl" };
+        static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl", "msl" };
         static_assert(sizeof(extMap) / sizeof(extMap[0]) == static_cast<uint32_t>(ShadingLanguage::NumShadingLanguages),
                       "extMap doesn't match with the number of shading languages.");
 
@@ -176,7 +176,7 @@ namespace
             { ShadingLanguage::Essl, "300" },
             { ShadingLanguage::Essl, "310" },
 
-            { ShadingLanguage::Msl },
+            { ShadingLanguage::Msl_macOS },
         };
         // clang-format on
 
@@ -385,7 +385,7 @@ namespace
 
     TEST_F(VertexShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
     }
 
 
@@ -406,7 +406,7 @@ namespace
 
     TEST_F(PixelShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
     }
 
 
@@ -427,7 +427,7 @@ namespace
 
     TEST_F(GeometryShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
     }
 
 
@@ -448,7 +448,7 @@ namespace
 
     TEST_F(HullShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
     }
 
 
@@ -469,7 +469,7 @@ namespace
 
     TEST_F(DomainShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
     }
 
 
@@ -490,7 +490,7 @@ namespace
 
     TEST_F(ComputeShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
     }
 
     TEST(IncludeTest, IncludeExist)
