@@ -36,6 +36,8 @@
 #include <fstream>
 #include <memory>
 
+#include <d3d12shader.h>
+#include <dxc/DxilContainer/DxilContainer.h>
 #include <dxc/dxcapi.h>
 #include <llvm/Support/ErrorHandling.h>
 
@@ -78,12 +80,18 @@ namespace
             return m_compiler;
         }
 
+        IDxcContainerReflection* ContainerReflection() const
+        {
+            return m_containerReflection;
+        }
+
         void Destroy()
         {
             if (m_dxcompilerDll)
             {
                 m_compiler = nullptr;
                 m_library = nullptr;
+                m_containerReflection = nullptr;
 
                 m_createInstanceFunc = nullptr;
 
@@ -103,6 +111,7 @@ namespace
             {
                 m_compiler.Detach();
                 m_library.Detach();
+                m_containerReflection.Detach();
 
                 m_createInstanceFunc = nullptr;
 
@@ -145,6 +154,8 @@ namespace
                 {
                     IFT(m_createInstanceFunc(CLSID_DxcLibrary, __uuidof(IDxcLibrary), reinterpret_cast<void**>(&m_library)));
                     IFT(m_createInstanceFunc(CLSID_DxcCompiler, __uuidof(IDxcCompiler), reinterpret_cast<void**>(&m_compiler)));
+                    IFT(m_createInstanceFunc(CLSID_DxcContainerReflection, __uuidof(IDxcContainerReflection),
+                                             reinterpret_cast<void**>(&m_containerReflection)));
                 }
                 else
                 {
@@ -165,6 +176,7 @@ namespace
 
         CComPtr<IDxcLibrary> m_library;
         CComPtr<IDxcCompiler> m_compiler;
+        CComPtr<IDxcContainerReflection> m_containerReflection;
     };
 
     class ScIncludeHandler : public IDxcIncludeHandler
@@ -304,6 +316,8 @@ namespace
         result.errorWarningMsg = CreateBlob(errorMSg.data(), static_cast<uint32_t>(errorMSg.size()));
         result.hasError = true;
     }
+
+    void Reflection(const Compiler::SourceDesc& source, IDxcBlob* dxilBlob, Compiler::ResultDesc* results);
 
     Compiler::ResultDesc CompileToBinary(const Compiler::SourceDesc& source, const Compiler::Options& options,
                                          ShadingLanguage targetLanguage)
@@ -471,6 +485,9 @@ namespace
         ret.target = nullptr;
         ret.isText = false;
         ret.errorWarningMsg = nullptr;
+        ret.reflectionDescs = nullptr;
+        ret.reflectionDescCount = 0;
+        ret.instructionCount = 0;
 
         CComPtr<IDxcBlobEncoding> errors;
         IFT(compileResult->GetErrorBuffer(&errors));
@@ -487,12 +504,18 @@ namespace
         if (SUCCEEDED(status))
         {
             CComPtr<IDxcBlob> program;
-            IFT(compileResult->GetResult(&program));
+            IFT(compileResult->GetResult((IDxcBlob**)&program));
             compileResult = nullptr;
             if (program != nullptr)
             {
                 ret.target = CreateBlob(program->GetBufferPointer(), static_cast<uint32_t>(program->GetBufferSize()));
                 ret.hasError = false;
+            }
+
+            if (targetLanguage == ShadingLanguage::Dxil)
+            {
+                // Gather reflection information only for ShadingLanguage::Dxil
+                Reflection(source, program, &ret);
             }
         }
 
@@ -510,6 +533,9 @@ namespace
         ret.target = nullptr;
         ret.errorWarningMsg = binaryResult.errorWarningMsg;
         ret.isText = true;
+        ret.reflectionDescs = nullptr;
+        ret.reflectionDescCount = 0;
+        ret.instructionCount = 0;
 
         uint32_t intVersion = 0;
         if (target.version != nullptr)
@@ -712,6 +738,9 @@ namespace
             const std::string targetStr = compiler->compile();
             ret.target = CreateBlob(targetStr.data(), static_cast<uint32_t>(targetStr.size()));
             ret.hasError = false;
+            ret.reflectionDescs = binaryResult.reflectionDescs;
+            ret.reflectionDescCount = binaryResult.reflectionDescCount;
+            ret.instructionCount = binaryResult.instructionCount;
         }
         catch (spirv_cross::CompilerError& error)
         {
@@ -722,6 +751,127 @@ namespace
         }
 
         return ret;
+    }
+
+    template <typename T>
+    static HRESULT CreateDxcReflectionFromBlob(IDxcBlob* dxilBlob, CComPtr<T>& outReflection)
+    {
+        IDxcContainerReflection* containReflection = Dxcompiler::Instance().ContainerReflection();
+        IFT(containReflection->Load(dxilBlob));
+
+        uint32_t dxilPartIndex = ~0u;
+        IFT(containReflection->FindFirstPartKind(hlsl::DFCC_DXIL, &dxilPartIndex));
+        HRESULT result = containReflection->GetPartReflection(dxilPartIndex, __uuidof(*outReflection), (void**)(&outReflection));
+
+        return result;
+    }
+
+    void ShaderReflection(IDxcBlob* dxilBlob, Compiler::ResultDesc* results)
+    {
+        CComPtr<ID3D12ShaderReflection> shaderReflection;
+        IFT(CreateDxcReflectionFromBlob(dxilBlob, shaderReflection));
+
+        D3D12_SHADER_DESC shaderDesc;
+        shaderReflection->GetDesc(&shaderDesc);
+
+        D3D12_SHADER_INPUT_BIND_DESC bindDesc;
+
+        static std::vector<Compiler::ReflectionDesc> vecReflectionDescs;
+        vecReflectionDescs.clear();
+
+        for (uint32_t resourceIndex = 0; resourceIndex < shaderDesc.BoundResources; resourceIndex++)
+        {
+            shaderReflection->GetResourceBindingDesc(resourceIndex, &bindDesc);
+
+            Compiler::ReflectionDesc reflectionDesc{};
+
+            if (bindDesc.Type == D3D_SIT_CBUFFER || bindDesc.Type == D3D_SIT_TBUFFER)
+            {
+                ID3D12ShaderReflectionConstantBuffer* constantBuffer = shaderReflection->GetConstantBufferByName(bindDesc.Name);
+
+                D3D12_SHADER_BUFFER_DESC bufferDesc;
+                constantBuffer->GetDesc(&bufferDesc);
+
+                if (strcmp(bufferDesc.Name, "$Globals") == 0)
+                {
+                    for (uint32_t variableIndex = 0; variableIndex < bufferDesc.Variables; variableIndex++)
+                    {
+                        ID3D12ShaderReflectionVariable* variable = constantBuffer->GetVariableByIndex(variableIndex);
+                        D3D12_SHADER_VARIABLE_DESC variableDesc;
+                        variable->GetDesc(&variableDesc);
+
+                        reflectionDesc.name = new char[strlen(variableDesc.Name) + 1];
+                        std::strncpy(reflectionDesc.name, variableDesc.Name, strlen(variableDesc.Name) + 1);
+
+                        reflectionDesc.type = ShaderResourceType::Parameter;
+                        reflectionDesc.bufferBindPoint = bindDesc.BindPoint;
+                        reflectionDesc.bindPoint = variableDesc.StartOffset;
+                        reflectionDesc.bindCount = variableDesc.Size;
+                    }
+                }
+                else
+                {
+                    reflectionDesc.name = new char[strlen(bufferDesc.Name) + 1];
+                    std::strncpy(reflectionDesc.name, bufferDesc.Name, strlen(bufferDesc.Name) + 1);
+
+                    reflectionDesc.type = ShaderResourceType::ConstantBuffer;
+                    reflectionDesc.bufferBindPoint = bindDesc.BindPoint;
+                    reflectionDesc.bindPoint = 0;
+                    reflectionDesc.bindCount = 0;
+                }
+            }
+            else
+            {
+                if (bindDesc.Type == D3D_SIT_TEXTURE)
+                {
+                    reflectionDesc.type = ShaderResourceType::Texture;
+                }
+                else if (bindDesc.Type == D3D_SIT_SAMPLER)
+                {
+                    reflectionDesc.type = ShaderResourceType::Sampler;
+                }
+                else if (bindDesc.Type == D3D_SIT_STRUCTURED || bindDesc.Type == D3D_SIT_BYTEADDRESS)
+                {
+                    reflectionDesc.type = ShaderResourceType::SRV;
+                }
+                else if (bindDesc.Type == D3D_SIT_UAV_RWTYPED || bindDesc.Type == D3D_SIT_UAV_RWSTRUCTURED ||
+                         bindDesc.Type == D3D_SIT_UAV_RWBYTEADDRESS || bindDesc.Type == D3D_SIT_UAV_APPEND_STRUCTURED ||
+                         bindDesc.Type == D3D_SIT_UAV_CONSUME_STRUCTURED || bindDesc.Type == D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER)
+                {
+                    reflectionDesc.type = ShaderResourceType::UAV;
+                }
+
+                reflectionDesc.name = new char[strlen(bindDesc.Name) + 1];
+                std::strncpy(reflectionDesc.name, bindDesc.Name, strlen(bindDesc.Name) + 1);
+
+				reflectionDesc.bufferBindPoint = 0;
+                reflectionDesc.bindPoint = bindDesc.BindPoint;
+                reflectionDesc.bindCount = bindDesc.BindCount;
+            }
+
+            vecReflectionDescs.push_back(reflectionDesc);
+        }
+
+        results->reflectionDescs = nullptr;
+        results->reflectionDescCount = static_cast<uint32_t>(vecReflectionDescs.size());
+		if (results->reflectionDescCount > 0)
+		{
+            results->reflectionDescs = vecReflectionDescs.data();
+		}
+        results->instructionCount = shaderDesc.InstructionCount;
+    }
+
+    void Reflection(const Compiler::SourceDesc& source, IDxcBlob* dxilBlob, Compiler::ResultDesc* results)
+    {
+        const bool raytracingStage = (source.stage >= ShaderStage::AnyHitShader) && (source.stage <= ShaderStage::RayGenerationShader);
+        if (!raytracingStage)
+        {
+            ShaderReflection(dxilBlob, results);
+        }
+        else
+        {
+            // TODO: Support library reflection.
+        }
     }
 } // namespace
 
@@ -845,6 +995,9 @@ namespace ShaderConductor
         ret.target = nullptr;
         ret.isText = true;
         ret.errorWarningMsg = nullptr;
+        ret.reflectionDescs = nullptr;
+        ret.reflectionDescCount = 0;
+        ret.instructionCount = 0;
 
         if (source.language == ShadingLanguage::SpirV)
         {
@@ -894,6 +1047,17 @@ namespace ShaderConductor
 
         return ret;
     }
+
+    void Compiler::DestroyResultDesc(ResultDesc* results)
+    {
+        Compiler::ReflectionDesc reflectionDesc{};
+        for (uint32_t i = 0; i < results->reflectionDescCount; i++)
+        {
+            reflectionDesc = results->reflectionDescs[i];
+            delete[] reflectionDesc.name;
+        }
+    }
+
 } // namespace ShaderConductor
 
 #ifdef _WIN32

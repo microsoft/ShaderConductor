@@ -63,6 +63,13 @@ namespace ShaderConductor
         DomainShader,
         ComputeShader,
 
+        AnyHitShader,
+        CallableShader,
+        ClosestHitShader,
+        IntersectionShader,
+		MissShader,
+		RayGenerationShader,
+
         NumShaderStages,
     };
 
@@ -78,6 +85,18 @@ namespace ShaderConductor
         Msl_iOS,
 
         NumShadingLanguages,
+    };
+
+	enum class ShaderResourceType : uint32_t
+    {
+        ConstantBuffer,
+        Parameter,
+        Texture,
+        Sampler,
+        SRV,
+        UAV,
+
+        NumShaderResourceType,
     };
 
     struct MacroDefine
@@ -161,6 +180,15 @@ namespace ShaderConductor
             const char* version;
         };
 
+		struct ReflectionDesc
+        {
+            char* name;					// Name of the resource
+            ShaderResourceType type;	// Type of resource (e.g. texture, cbuffer, etc.)
+            uint32_t bufferBindPoint;	// Buffer's starting bind point
+            uint32_t bindPoint;			// Starting bind point
+            uint32_t bindCount;			// Number of contiguous bind points (for arrays)
+        };
+
         struct ResultDesc
         {
             Blob* target;
@@ -168,6 +196,10 @@ namespace ShaderConductor
 
             Blob* errorWarningMsg;
             bool hasError;
+
+            ReflectionDesc* reflectionDescs;
+            uint32_t reflectionDescCount;
+            uint32_t instructionCount;
         };
 
         struct DisassembleDesc
@@ -182,6 +214,8 @@ namespace ShaderConductor
         static void Compile(const SourceDesc& source, const Options& options, const TargetDesc* targets, uint32_t numTargets,
                             ResultDesc* results);
         static ResultDesc Disassemble(const DisassembleDesc& source);
+
+		static void DestroyResultDesc(ResultDesc* results);
     };
 } // namespace ShaderConductor
 
