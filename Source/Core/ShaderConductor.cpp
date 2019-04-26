@@ -36,7 +36,6 @@
 #include <fstream>
 #include <memory>
 
-#include <d3d12shader.h>
 #include <dxc/DxilContainer/DxilContainer.h>
 #include <dxc/dxcapi.h>
 #include <llvm/Support/ErrorHandling.h>
@@ -47,6 +46,10 @@
 #include <spirv_glsl.hpp>
 #include <spirv_hlsl.hpp>
 #include <spirv_msl.hpp>
+
+#ifdef LLVM_ON_WIN32
+#include <d3d12shader.h>
+#endif
 
 #define SC_UNUSED(x) (void)(x);
 
@@ -317,7 +320,128 @@ namespace
         result.hasError = true;
     }
 
-    void Reflection(const Compiler::SourceDesc& source, IDxcBlob* dxilBlob, Compiler::ResultDesc* results);
+#ifdef LLVM_ON_WIN32
+    template <typename T>
+    static HRESULT CreateDxcReflectionFromBlob(IDxcBlob* dxilBlob, CComPtr<T>& outReflection)
+    {
+        IDxcContainerReflection* containReflection = Dxcompiler::Instance().ContainerReflection();
+        IFT(containReflection->Load(dxilBlob));
+
+        uint32_t dxilPartIndex = ~0u;
+        IFT(containReflection->FindFirstPartKind(hlsl::DFCC_DXIL, &dxilPartIndex));
+        HRESULT result = containReflection->GetPartReflection(dxilPartIndex, __uuidof(*outReflection), (void**)(&outReflection));
+
+        return result;
+    }
+
+    void ShaderReflection(IDxcBlob* dxilBlob, Compiler::ResultDesc* results)
+    {
+        CComPtr<ID3D12ShaderReflection> shaderReflection;
+        IFT(CreateDxcReflectionFromBlob(dxilBlob, shaderReflection));
+
+        D3D12_SHADER_DESC shaderDesc;
+        shaderReflection->GetDesc(&shaderDesc);
+
+        D3D12_SHADER_INPUT_BIND_DESC bindDesc;
+
+        static std::vector<Compiler::ReflectionDesc> vecReflectionDescs;
+        vecReflectionDescs.clear();
+
+        for (uint32_t resourceIndex = 0; resourceIndex < shaderDesc.BoundResources; resourceIndex++)
+        {
+            shaderReflection->GetResourceBindingDesc(resourceIndex, &bindDesc);
+
+            Compiler::ReflectionDesc reflectionDesc{};
+
+            if (bindDesc.Type == D3D_SIT_CBUFFER || bindDesc.Type == D3D_SIT_TBUFFER)
+            {
+                ID3D12ShaderReflectionConstantBuffer* constantBuffer = shaderReflection->GetConstantBufferByName(bindDesc.Name);
+
+                D3D12_SHADER_BUFFER_DESC bufferDesc;
+                constantBuffer->GetDesc(&bufferDesc);
+
+                if (strcmp(bufferDesc.Name, "$Globals") == 0)
+                {
+                    for (uint32_t variableIndex = 0; variableIndex < bufferDesc.Variables; variableIndex++)
+                    {
+                        ID3D12ShaderReflectionVariable* variable = constantBuffer->GetVariableByIndex(variableIndex);
+                        D3D12_SHADER_VARIABLE_DESC variableDesc;
+                        variable->GetDesc(&variableDesc);
+
+                        reflectionDesc.name = new char[strlen(variableDesc.Name) + 1];
+                        std::strncpy(reflectionDesc.name, variableDesc.Name, strlen(variableDesc.Name) + 1);
+
+                        reflectionDesc.type = ShaderResourceType::Parameter;
+                        reflectionDesc.bufferBindPoint = bindDesc.BindPoint;
+                        reflectionDesc.bindPoint = variableDesc.StartOffset;
+                        reflectionDesc.bindCount = variableDesc.Size;
+                    }
+                }
+                else
+                {
+                    reflectionDesc.name = new char[strlen(bufferDesc.Name) + 1];
+                    std::strncpy(reflectionDesc.name, bufferDesc.Name, strlen(bufferDesc.Name) + 1);
+
+                    reflectionDesc.type = ShaderResourceType::ConstantBuffer;
+                    reflectionDesc.bufferBindPoint = bindDesc.BindPoint;
+                    reflectionDesc.bindPoint = 0;
+                    reflectionDesc.bindCount = 0;
+                }
+            }
+            else
+            {
+                if (bindDesc.Type == D3D_SIT_TEXTURE)
+                {
+                    reflectionDesc.type = ShaderResourceType::Texture;
+                }
+                else if (bindDesc.Type == D3D_SIT_SAMPLER)
+                {
+                    reflectionDesc.type = ShaderResourceType::Sampler;
+                }
+                else if (bindDesc.Type == D3D_SIT_STRUCTURED || bindDesc.Type == D3D_SIT_BYTEADDRESS)
+                {
+                    reflectionDesc.type = ShaderResourceType::SRV;
+                }
+                else if (bindDesc.Type == D3D_SIT_UAV_RWTYPED || bindDesc.Type == D3D_SIT_UAV_RWSTRUCTURED ||
+                         bindDesc.Type == D3D_SIT_UAV_RWBYTEADDRESS || bindDesc.Type == D3D_SIT_UAV_APPEND_STRUCTURED ||
+                         bindDesc.Type == D3D_SIT_UAV_CONSUME_STRUCTURED || bindDesc.Type == D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER)
+                {
+                    reflectionDesc.type = ShaderResourceType::UAV;
+                }
+
+                reflectionDesc.name = new char[strlen(bindDesc.Name) + 1];
+                std::strncpy(reflectionDesc.name, bindDesc.Name, strlen(bindDesc.Name) + 1);
+
+                reflectionDesc.bufferBindPoint = 0;
+                reflectionDesc.bindPoint = bindDesc.BindPoint;
+                reflectionDesc.bindCount = bindDesc.BindCount;
+            }
+
+            vecReflectionDescs.push_back(reflectionDesc);
+        }
+
+        results->reflectionDescs = nullptr;
+        results->reflectionDescCount = static_cast<uint32_t>(vecReflectionDescs.size());
+        if (results->reflectionDescCount > 0)
+        {
+            results->reflectionDescs = vecReflectionDescs.data();
+        }
+        results->instructionCount = shaderDesc.InstructionCount;
+    }
+
+    void Reflection(const Compiler::SourceDesc& source, IDxcBlob* dxilBlob, Compiler::ResultDesc* results)
+    {
+        const bool rasterizationShaderStage = (source.stage >= ShaderStage::VertexShader) && (source.stage <= ShaderStage::ComputeShader);
+        if (rasterizationShaderStage)
+        {
+            ShaderReflection(dxilBlob, results);
+        }
+        else
+        {
+            // TODO: Support raytracing shaders library reflection.
+        }
+    }
+#endif
 
     Compiler::ResultDesc CompileToBinary(const Compiler::SourceDesc& source, const Compiler::Options& options,
                                          ShadingLanguage targetLanguage)
@@ -512,11 +636,13 @@ namespace
                 ret.hasError = false;
             }
 
+#ifdef LLVM_ON_WIN32
             if (targetLanguage == ShadingLanguage::Dxil)
             {
                 // Gather reflection information only for ShadingLanguage::Dxil
                 Reflection(source, program, &ret);
             }
+#endif
         }
 
         return ret;
@@ -751,127 +877,6 @@ namespace
         }
 
         return ret;
-    }
-
-    template <typename T>
-    static HRESULT CreateDxcReflectionFromBlob(IDxcBlob* dxilBlob, CComPtr<T>& outReflection)
-    {
-        IDxcContainerReflection* containReflection = Dxcompiler::Instance().ContainerReflection();
-        IFT(containReflection->Load(dxilBlob));
-
-        uint32_t dxilPartIndex = ~0u;
-        IFT(containReflection->FindFirstPartKind(hlsl::DFCC_DXIL, &dxilPartIndex));
-        HRESULT result = containReflection->GetPartReflection(dxilPartIndex, __uuidof(*outReflection), (void**)(&outReflection));
-
-        return result;
-    }
-
-    void ShaderReflection(IDxcBlob* dxilBlob, Compiler::ResultDesc* results)
-    {
-        CComPtr<ID3D12ShaderReflection> shaderReflection;
-        IFT(CreateDxcReflectionFromBlob(dxilBlob, shaderReflection));
-
-        D3D12_SHADER_DESC shaderDesc;
-        shaderReflection->GetDesc(&shaderDesc);
-
-        D3D12_SHADER_INPUT_BIND_DESC bindDesc;
-
-        static std::vector<Compiler::ReflectionDesc> vecReflectionDescs;
-        vecReflectionDescs.clear();
-
-        for (uint32_t resourceIndex = 0; resourceIndex < shaderDesc.BoundResources; resourceIndex++)
-        {
-            shaderReflection->GetResourceBindingDesc(resourceIndex, &bindDesc);
-
-            Compiler::ReflectionDesc reflectionDesc{};
-
-            if (bindDesc.Type == D3D_SIT_CBUFFER || bindDesc.Type == D3D_SIT_TBUFFER)
-            {
-                ID3D12ShaderReflectionConstantBuffer* constantBuffer = shaderReflection->GetConstantBufferByName(bindDesc.Name);
-
-                D3D12_SHADER_BUFFER_DESC bufferDesc;
-                constantBuffer->GetDesc(&bufferDesc);
-
-                if (strcmp(bufferDesc.Name, "$Globals") == 0)
-                {
-                    for (uint32_t variableIndex = 0; variableIndex < bufferDesc.Variables; variableIndex++)
-                    {
-                        ID3D12ShaderReflectionVariable* variable = constantBuffer->GetVariableByIndex(variableIndex);
-                        D3D12_SHADER_VARIABLE_DESC variableDesc;
-                        variable->GetDesc(&variableDesc);
-
-                        reflectionDesc.name = new char[strlen(variableDesc.Name) + 1];
-                        std::strncpy(reflectionDesc.name, variableDesc.Name, strlen(variableDesc.Name) + 1);
-
-                        reflectionDesc.type = ShaderResourceType::Parameter;
-                        reflectionDesc.bufferBindPoint = bindDesc.BindPoint;
-                        reflectionDesc.bindPoint = variableDesc.StartOffset;
-                        reflectionDesc.bindCount = variableDesc.Size;
-                    }
-                }
-                else
-                {
-                    reflectionDesc.name = new char[strlen(bufferDesc.Name) + 1];
-                    std::strncpy(reflectionDesc.name, bufferDesc.Name, strlen(bufferDesc.Name) + 1);
-
-                    reflectionDesc.type = ShaderResourceType::ConstantBuffer;
-                    reflectionDesc.bufferBindPoint = bindDesc.BindPoint;
-                    reflectionDesc.bindPoint = 0;
-                    reflectionDesc.bindCount = 0;
-                }
-            }
-            else
-            {
-                if (bindDesc.Type == D3D_SIT_TEXTURE)
-                {
-                    reflectionDesc.type = ShaderResourceType::Texture;
-                }
-                else if (bindDesc.Type == D3D_SIT_SAMPLER)
-                {
-                    reflectionDesc.type = ShaderResourceType::Sampler;
-                }
-                else if (bindDesc.Type == D3D_SIT_STRUCTURED || bindDesc.Type == D3D_SIT_BYTEADDRESS)
-                {
-                    reflectionDesc.type = ShaderResourceType::SRV;
-                }
-                else if (bindDesc.Type == D3D_SIT_UAV_RWTYPED || bindDesc.Type == D3D_SIT_UAV_RWSTRUCTURED ||
-                         bindDesc.Type == D3D_SIT_UAV_RWBYTEADDRESS || bindDesc.Type == D3D_SIT_UAV_APPEND_STRUCTURED ||
-                         bindDesc.Type == D3D_SIT_UAV_CONSUME_STRUCTURED || bindDesc.Type == D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER)
-                {
-                    reflectionDesc.type = ShaderResourceType::UAV;
-                }
-
-                reflectionDesc.name = new char[strlen(bindDesc.Name) + 1];
-                std::strncpy(reflectionDesc.name, bindDesc.Name, strlen(bindDesc.Name) + 1);
-
-				reflectionDesc.bufferBindPoint = 0;
-                reflectionDesc.bindPoint = bindDesc.BindPoint;
-                reflectionDesc.bindCount = bindDesc.BindCount;
-            }
-
-            vecReflectionDescs.push_back(reflectionDesc);
-        }
-
-        results->reflectionDescs = nullptr;
-        results->reflectionDescCount = static_cast<uint32_t>(vecReflectionDescs.size());
-		if (results->reflectionDescCount > 0)
-		{
-            results->reflectionDescs = vecReflectionDescs.data();
-		}
-        results->instructionCount = shaderDesc.InstructionCount;
-    }
-
-    void Reflection(const Compiler::SourceDesc& source, IDxcBlob* dxilBlob, Compiler::ResultDesc* results)
-    {
-        const bool raytracingStage = (source.stage >= ShaderStage::AnyHitShader) && (source.stage <= ShaderStage::RayGenerationShader);
-        if (!raytracingStage)
-        {
-            ShaderReflection(dxilBlob, results);
-        }
-        else
-        {
-            // TODO: Support library reflection.
-        }
     }
 } // namespace
 
