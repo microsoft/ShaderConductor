@@ -8,10 +8,10 @@ endif()
 
 set(cxxopts_REV "3f2d70530219e09fe7e563f86126b0d3b228a60d")
 set(googletest_REV "440527a61e1c91188195f7de212c63c77e8f0a45")
-set(SPIRV_Headers_REV "111a25e4ae45e2b4d7c18415e1d6884712b958c4")
-set(SPIRV_Tools_REV "12e4a7b649e6fe28683de9fc352200c82948a1f0")
-set(DirectXShaderCompiler_REV "850c8d36761b2c45ac752b3747c37940db9c64f9")
-set(SPIRV_Cross_REV "942273dc7b107d4f0c2cf3449ae306525e1cbae7")
+set(SPIRV_Headers_REV "4b0985f29277a81f5ce88feb0502cc44d6d5e7c3")
+set(SPIRV_Tools_REV "e935dac9ef8a01fdb6d0a4b7898563e6f62d1081")
+set(DirectXShaderCompiler_REV "2dec1cd0df488988f27c5ce790d9025efe582908")
+set(SPIRV_Cross_REV "cb686a5dba9a7086a778fe21900383beed9ea5d3")
 
 function(UpdateExternalLib name url rev)
     set(need_checkout FALSE)
@@ -64,9 +64,9 @@ set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
 set(SPIRV_TOOLS_EXTRA_DEFINITIONS /D_ITERATOR_DEBUG_LEVEL=0)
 add_subdirectory(SPIRV-Tools EXCLUDE_FROM_ALL)
 foreach(target
+    "core_tables" "enum_string_mapping" "extinst_tables"
     "spirv-tools-pkg-config" "spirv-tools-shared-pkg-config"
-    "spirv-tools-build-version" "spirv-tools-debuginfo" "spirv-tools-header-DebugInfo" "spirv-tools-spv-amd-gcn-shader"
-    "spirv-tools-spv-amd-shader-ballot" "spirv-tools-spv-amd-shader-explicit-vertex-parameter" "spirv-tools-spv-amd-shader-trinary-minmax"
+    "spirv-tools-build-version" "spirv-tools-header-DebugInfo"
     "SPIRV-Tools-link" "SPIRV-Tools-shared"
     "spirv-tools-vimsyntax")
     get_target_property(vsFolder ${target} FOLDER)

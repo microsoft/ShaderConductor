@@ -35,6 +35,8 @@ if((CMAKE_C_COMPILER_ID MATCHES GNU) OR (CMAKE_C_COMPILER_ID MATCHES Clang))
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1z")
 endif()
 
+set(Python_ADDITIONAL_VERSIONS 3.5 3.6 3.7)
+
 # DirectXShaderCompiler requires it
 add_definitions(-D_ITERATOR_DEBUG_LEVEL=0)
 # Handle a compiling issue of SPIR-V

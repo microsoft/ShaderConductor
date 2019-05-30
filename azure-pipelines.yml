@@ -15,7 +15,7 @@ jobs:
     compiler: vc140
     combination: 'win-$(compiler)-$(platform)-$(configuration)'
     buildFolder: 'Build/ninja-$(combination)'
-    installCommand: 'choco install ninja'
+    installCommand: 'choco install ninja python3'
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
     artifactBinaries: |
       Bin/ShaderConductor.dll
@@ -34,7 +34,7 @@ jobs:
     compiler: vc141
     combination: 'win-$(compiler)-$(platform)-$(configuration)'
     buildFolder: 'Build/ninja-$(combination)'
-    installCommand: 'choco install ninja'
+    installCommand: 'choco install ninja python3'
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
     artifactBinaries: |
       Bin/ShaderConductor.dll
@@ -56,7 +56,7 @@ jobs:
     installCommand: |
       sudo add-apt-repository ppa:ubuntu-toolchain-r/test
       sudo apt-get update
-      sudo apt-get install g++-7 ninja-build
+      sudo apt-get install g++-7 ninja-build python3
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd
@@ -79,7 +79,7 @@ jobs:
     installCommand: |
       sudo add-apt-repository ppa:ubuntu-toolchain-r/test
       sudo apt-get update
-      sudo apt-get install g++-8 ninja-build
+      sudo apt-get install g++-8 ninja-build python3
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd
@@ -103,7 +103,7 @@ jobs:
       sudo add-apt-repository ppa:llvm-toolchain-xenial-6.0/main
       sudo add-apt-repository ppa:ubuntu-toolchain-r/test
       sudo apt-get update
-      sudo apt-get install clang-6.0 libstdc++-6-dev lld-6.0 ninja-build
+      sudo apt-get install clang-6.0 libstdc++-6-dev lld-6.0 ninja-build python3
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd
@@ -128,7 +128,7 @@ jobs:
       sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main"
       sudo add-apt-repository ppa:ubuntu-toolchain-r/test
       sudo apt-get update
-      sudo apt-get install clang-7 libstdc++-7-dev lld-7 ninja-build
+      sudo apt-get install clang-7 libstdc++-7-dev lld-7 ninja-build python3
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd
@@ -150,7 +150,7 @@ jobs:
     buildFolder: 'Build/ninja-$(combination)'
     installCommand: |
       brew update
-      brew install ninja
+      brew install ninja python3
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd
