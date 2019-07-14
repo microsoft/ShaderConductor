@@ -7,7 +7,7 @@ resources:
   fetchDepth: 5
 
 jobs:
-- job: Windows_vc140
+- job: Windows_vc140_x64
   pool:
     vmImage: VS2017-Win2016
 
@@ -26,7 +26,27 @@ jobs:
   steps:
   - template: CI/AzurePipelines/ContinuousBuild.yml
 
-- job: Windows_vc141
+- job: Windows_vc141_x86
+  pool:
+    vmImage: VS2017-Win2016
+
+  variables:
+    compiler: vc141
+    platform: x86
+    combination: 'win-$(compiler)-$(platform)-$(configuration)'
+    buildFolder: 'Build/ninja-$(combination)'
+    installCommand: 'choco install ninja python3'
+    testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
+    artifactBinaries: |
+      Bin/ShaderConductor.dll
+      Bin/ShaderConductorCmd.exe
+      Bin/dxcompiler.dll
+      Lib/ShaderConductor.lib
+
+  steps:
+  - template: CI/AzurePipelines/ContinuousBuild.yml
+
+- job: Windows_vc141_x64
   pool:
     vmImage: VS2017-Win2016
 
@@ -45,7 +65,27 @@ jobs:
   steps:
   - template: CI/AzurePipelines/ContinuousBuild.yml
 
-- job: Windows_vc142
+- job: Windows_vc142_x86
+  pool:
+    vmImage: windows-2019
+
+  variables:
+    compiler: vc142
+    platform: x86
+    combination: 'win-$(compiler)-$(platform)-$(configuration)'
+    buildFolder: 'Build/ninja-$(combination)'
+    installCommand: 'choco install ninja'
+    testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
+    artifactBinaries: |
+      Bin/ShaderConductor.dll
+      Bin/ShaderConductorCmd.exe
+      Bin/dxcompiler.dll
+      Lib/ShaderConductor.lib
+
+  steps:
+  - template: CI/AzurePipelines/ContinuousBuild.yml
+
+- job: Windows_vc142_x64
   pool:
     vmImage: windows-2019
 

@@ -254,10 +254,10 @@ namespace
         if (includeFile)
         {
             includeFile.seekg(0, std::ios::end);
-            ret.resize(includeFile.tellg());
+            ret.resize(static_cast<size_t>(includeFile.tellg()));
             includeFile.seekg(0, std::ios::beg);
             includeFile.read(ret.data(), ret.size());
-            ret.resize(includeFile.gcount());
+            ret.resize(static_cast<size_t>(includeFile.gcount()));
         }
         else
         {

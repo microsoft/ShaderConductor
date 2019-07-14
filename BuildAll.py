@@ -172,8 +172,16 @@ if __name__ == "__main__":
 			vsFolder = FindVS2015Folder(programFilesFolder)
 		if "x64" == arch:
 			vcOption = "amd64"
+			vcArch = "x64"
 		elif "x86" == arch:
 			vcOption = "x86"
+			vcArch = "Win32"
+		elif "arm64" == arch:
+			vcOption = "amd64_arm64"
+			vcArch = "ARM64"
+		elif "arm" == arch:
+			vcOption = "amd64_arm"
+			vcArch = "ARM"
 		else:
 			LogError("Unsupported architecture.\n")
 		vcToolset = ""
@@ -198,8 +206,8 @@ if __name__ == "__main__":
 			generator = "\"Visual Studio 15\""
 		elif buildSys == "vs2015":
 			generator = "\"Visual Studio 14\""
-		batCmd.AddCommand("cmake -G %s -T %shost=x64 -A %s ../../" % (generator, vcToolset, arch))
-		batCmd.AddCommand("MSBuild ALL_BUILD.vcxproj /nologo /m:%d /v:m /p:Configuration=%s,Platform=%s" % (parallel, configuration, arch))
+		batCmd.AddCommand("cmake -G %s -T %shost=x64 -A %s ../../" % (generator, vcToolset, vcArch))
+		batCmd.AddCommand("MSBuild ALL_BUILD.vcxproj /nologo /m:%d /v:m /p:Configuration=%s,Platform=%s" % (parallel, configuration, vcArch))
 	if batCmd.Execute() != 0:
 		LogError("Build failed.\n")
 

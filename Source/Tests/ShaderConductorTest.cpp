@@ -49,10 +49,10 @@ namespace
         if (file)
         {
             file.seekg(0, std::ios::end);
-            ret.resize(file.tellg());
+            ret.resize(static_cast<size_t>(file.tellg()));
             file.seekg(0, std::ios::beg);
             file.read(reinterpret_cast<char*>(ret.data()), ret.size());
-            ret.resize(file.gcount());
+            ret.resize(static_cast<size_t>(file.gcount()));
         }
         return ret;
     }
@@ -526,7 +526,7 @@ namespace
 
         EXPECT_TRUE(result.hasError);
         const char* errorStr = reinterpret_cast<const char*>(result.errorWarningMsg->Data());
-        EXPECT_GE(std::string(errorStr, errorStr + result.errorWarningMsg->Size()).find("fatal error: 'Header.hlsli' file not found"), 0);
+        EXPECT_GE(std::string(errorStr, errorStr + result.errorWarningMsg->Size()).find("fatal error: 'Header.hlsli' file not found"), 0U);
 
         DestroyBlob(result.errorWarningMsg);
         DestroyBlob(result.target);

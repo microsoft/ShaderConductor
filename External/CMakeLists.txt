@@ -68,8 +68,11 @@ foreach(target
     "spirv-tools-pkg-config" "spirv-tools-shared-pkg-config"
     "spirv-tools-build-version" "spirv-tools-header-DebugInfo"
     "SPIRV-Tools-link" "SPIRV-Tools-shared"
-    "spirv-tools-vimsyntax")
+    "spirv-tools-vimsyntax" "spv-tools-debuginfo" "spv-tools-spv-amd-gs" "spv-tools-spv-amd-sb" "spv-tools-spv-amd-sevp" "spv-tools-spv-amd-stm")
     get_target_property(vsFolder ${target} FOLDER)
+    if(NOT vsFolder)
+        set(vsFolder "")
+    endif()
     set_target_properties(${target} PROPERTIES FOLDER "External/SPIRV-Tools/${vsFolder}")
 endforeach()
 
@@ -93,7 +96,15 @@ set(LLVM_DEFAULT_TARGET_TRIPLE "dxil-ms-dx" CACHE STRING "" FORCE)
 set(CLANG_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LLVM_REQUIRES_RTTI ON CACHE BOOL "" FORCE)
 set(CLANG_CL OFF CACHE BOOL "" FORCE)
-set(DXC_BUILD_ARCH "x64" CACHE STRING "" FORCE) # TODO: Support more architectures
+if(SC_ARCH_NAME STREQUAL "x86")
+    set(DXC_BUILD_ARCH "Win32" CACHE STRING "" FORCE)
+elseif(SC_ARCH_NAME STREQUAL "arm")
+    set(DXC_BUILD_ARCH "ARM" CACHE STRING "" FORCE)
+elseif(SC_ARCH_NAME STREQUAL "arm64")
+    set(DXC_BUILD_ARCH "ARM64" CACHE STRING "" FORCE)
+else()
+    set(DXC_BUILD_ARCH "${SC_ARCH_NAME}" CACHE STRING "" FORCE)
+endif()
 set(SPIRV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
 set(SPIRV_SKIP_TESTS ON CACHE BOOL "" FORCE)
@@ -116,15 +127,21 @@ foreach(target
     "LLVMTransformUtils" "LLVMVectorize"
     "ClangDriverOptions" "DxcEtw" "intrinsics_gen" "TablegenHLSLOptions"
     "clang-tblgen" "GIT_COMMIT_INFO_ALWAYS_REBUILD" "llvm-tblgen")
-    get_target_property(vsFolder ${target} FOLDER)
+    get_target_property(vsFolder ${target} FOLDER)	
+    if(NOT vsFolder)
+        set(vsFolder "")
+    endif()
     set_target_properties(${target} PROPERTIES FOLDER "External/DirectXShaderCompiler/${vsFolder}")
 endforeach()
 if(WIN32)
     foreach(target
         "dndxc" "dxa" "dxl" "dxopt" "dxr" "dxv"
         "d3dcompiler_dxc_bridge" "dxlib_sample" "dxrfallbackcompiler"
-        "dxexp")
+        "dxexp" "LLVMDxilDia")
         get_target_property(vsFolder ${target} FOLDER)
+        if(NOT vsFolder)
+            set(vsFolder "")
+        endif()
         set_target_properties(${target} PROPERTIES FOLDER "External/DirectXShaderCompiler/${vsFolder}")
     endforeach()
 endif()
