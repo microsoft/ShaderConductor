@@ -1,12 +1,17 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
+find_program(git_executable NAMES git git.exe git.cmd)
+if(NOT git_executable)
+    message(FATAL_ERROR "Failed to find git.")
+endif()
+
 set(cxxopts_REV "3f2d70530219e09fe7e563f86126b0d3b228a60d")
 set(googletest_REV "440527a61e1c91188195f7de212c63c77e8f0a45")
-set(SPIRV_Headers_REV "bbf63435c37aafac5d1cdfc287401d87cd3ca364")
-set(SPIRV_Tools_REV "c512c6864080ff617afb422a3d04dd902809a6cf")
-set(DirectXShaderCompiler_REV "ac18ec5819a79966b0061794f7ae6bdf4556e728")
-set(SPIRV_Cross_REV "f734d78c1536b9c786bd54ab6a30caa4f8cb0bff")
+set(SPIRV_Headers_REV "4b0985f29277a81f5ce88feb0502cc44d6d5e7c3")
+set(SPIRV_Tools_REV "e935dac9ef8a01fdb6d0a4b7898563e6f62d1081")
+set(DirectXShaderCompiler_REV "2dec1cd0df488988f27c5ce790d9025efe582908")
+set(SPIRV_Cross_REV "cb686a5dba9a7086a778fe21900383beed9ea5d3")
 
 function(UpdateExternalLib name url rev)
     set(need_checkout FALSE)
@@ -14,8 +19,8 @@ function(UpdateExternalLib name url rev)
     set(external_lib_folder "${external_folder}/${name}")
     if(EXISTS ${external_lib_folder})
         message(STATUS "Updating ${name} to revision ${rev}...")
-        execute_process(COMMAND "git" "fetch" "origin" WORKING_DIRECTORY "${external_lib_folder}")
-        execute_process(COMMAND "git" "rev-parse" "HEAD" WORKING_DIRECTORY "${external_lib_folder}" OUTPUT_VARIABLE head_rev)
+        execute_process(COMMAND "${git_executable}" "fetch" "origin" WORKING_DIRECTORY "${external_lib_folder}")
+        execute_process(COMMAND "${git_executable}" "rev-parse" "HEAD" WORKING_DIRECTORY "${external_lib_folder}" OUTPUT_VARIABLE head_rev)
         string(STRIP ${head_rev} head_rev)
         if (${head_rev} STREQUAL ${rev})
             set(need_checkout FALSE)
@@ -24,12 +29,12 @@ function(UpdateExternalLib name url rev)
         endif()
     else()
         message(STATUS "Cloning ${name} revision...")
-        execute_process(COMMAND "git" "clone" ${url} "-n" WORKING_DIRECTORY "${external_folder}")
+        execute_process(COMMAND "${git_executable}" "clone" ${url} "-n" WORKING_DIRECTORY "${external_folder}")
         set(need_checkout TRUE)
     endif()
     if(need_checkout)
         message(STATUS "Checking out to revision ${rev}...")
-        execute_process(COMMAND "git" "checkout" "-q" ${rev} WORKING_DIRECTORY "${external_lib_folder}")
+        execute_process(COMMAND "${git_executable}" "checkout" "-q" ${rev} WORKING_DIRECTORY "${external_lib_folder}")
     endif()
 endfunction()
 
@@ -59,13 +64,16 @@ set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
 set(SPIRV_TOOLS_EXTRA_DEFINITIONS /D_ITERATOR_DEBUG_LEVEL=0)
 add_subdirectory(SPIRV-Tools EXCLUDE_FROM_ALL)
 foreach(target
+    "core_tables" "enum_string_mapping" "extinst_tables"
     "spirv-tools-pkg-config" "spirv-tools-shared-pkg-config"
-    "spirv-tools-build-version" "spirv-tools-debuginfo" "spirv-tools-header-DebugInfo" "spirv-tools-spv-amd-gcn-shader"
-    "spirv-tools-spv-amd-shader-ballot" "spirv-tools-spv-amd-shader-explicit-vertex-parameter" "spirv-tools-spv-amd-shader-trinary-minmax"
+    "spirv-tools-build-version" "spirv-tools-header-DebugInfo"
     "SPIRV-Tools-link" "SPIRV-Tools-shared"
-    "spirv-tools-vimsyntax")
+    "spirv-tools-vimsyntax" "spv-tools-debuginfo" "spv-tools-spv-amd-gs" "spv-tools-spv-amd-sb" "spv-tools-spv-amd-sevp" "spv-tools-spv-amd-stm")
     get_target_property(vsFolder ${target} FOLDER)
-    set_target_properties(${target} PROPERTIES FOLDER "External/SPIRV-Tools/%{vsFolder}")
+    if(NOT vsFolder)
+        set(vsFolder "")
+    endif()
+    set_target_properties(${target} PROPERTIES FOLDER "External/SPIRV-Tools/${vsFolder}")
 endforeach()
 
 set(ENABLE_SPIRV_CODEGEN ON CACHE BOOL "" FORCE)
@@ -88,7 +96,15 @@ set(LLVM_DEFAULT_TARGET_TRIPLE "dxil-ms-dx" CACHE STRING "" FORCE)
 set(CLANG_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LLVM_REQUIRES_RTTI ON CACHE BOOL "" FORCE)
 set(CLANG_CL OFF CACHE BOOL "" FORCE)
-set(DXC_BUILD_ARCH "x64" CACHE STRING "" FORCE) # TODO: Support more architectures
+if(SC_ARCH_NAME STREQUAL "x86")
+    set(DXC_BUILD_ARCH "Win32" CACHE STRING "" FORCE)
+elseif(SC_ARCH_NAME STREQUAL "arm")
+    set(DXC_BUILD_ARCH "ARM" CACHE STRING "" FORCE)
+elseif(SC_ARCH_NAME STREQUAL "arm64")
+    set(DXC_BUILD_ARCH "ARM64" CACHE STRING "" FORCE)
+else()
+    set(DXC_BUILD_ARCH "${SC_ARCH_NAME}" CACHE STRING "" FORCE)
+endif()
 set(SPIRV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
 set(SPIRV_SKIP_TESTS ON CACHE BOOL "" FORCE)
@@ -111,15 +127,21 @@ foreach(target
     "LLVMTransformUtils" "LLVMVectorize"
     "ClangDriverOptions" "DxcEtw" "intrinsics_gen" "TablegenHLSLOptions"
     "clang-tblgen" "GIT_COMMIT_INFO_ALWAYS_REBUILD" "llvm-tblgen")
-    get_target_property(vsFolder ${target} FOLDER)
+    get_target_property(vsFolder ${target} FOLDER)	
+    if(NOT vsFolder)
+        set(vsFolder "")
+    endif()
     set_target_properties(${target} PROPERTIES FOLDER "External/DirectXShaderCompiler/${vsFolder}")
 endforeach()
 if(WIN32)
     foreach(target
         "dndxc" "dxa" "dxl" "dxopt" "dxr" "dxv"
         "d3dcompiler_dxc_bridge" "dxlib_sample" "dxrfallbackcompiler"
-        "dxexp")
+        "dxexp" "LLVMDxilDia")
         get_target_property(vsFolder ${target} FOLDER)
+        if(NOT vsFolder)
+            set(vsFolder "")
+        endif()
         set_target_properties(${target} PROPERTIES FOLDER "External/DirectXShaderCompiler/${vsFolder}")
     endforeach()
 endif()

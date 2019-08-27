@@ -29,8 +29,6 @@
 #pragma once
 
 #include <functional>
-#include <string>
-#include <vector>
 
 #if defined(__clang__)
 #define SC_SYMBOL_EXPORT __attribute__((__visibility__("default")))
@@ -76,54 +74,114 @@ namespace ShaderConductor
         Hlsl,
         Glsl,
         Essl,
-        Msl,
+        Msl_macOS,
+        Msl_iOS,
 
         NumShadingLanguages,
     };
 
     struct MacroDefine
     {
-        std::string name;
-        std::string value;
+        const char* name;
+        const char* value;
     };
+
+    class SC_API Blob
+    {
+    public:
+        virtual ~Blob();
+
+        virtual const void* Data() const = 0;
+        virtual uint32_t Size() const = 0;
+    };
+
+    SC_API Blob* CreateBlob(const void* data, uint32_t size);
+    SC_API void DestroyBlob(Blob* blob);
 
     class SC_API Compiler
     {
     public:
+        struct ShaderModel
+        {
+            uint8_t major_ver : 6;
+            uint8_t minor_ver : 2;
+
+            uint32_t FullVersion() const noexcept
+            {
+                return (major_ver << 2) | minor_ver;
+            }
+
+            bool operator<(const ShaderModel& other) const noexcept
+            {
+                return this->FullVersion() < other.FullVersion();
+            }
+            bool operator==(const ShaderModel& other) const noexcept
+            {
+                return this->FullVersion() == other.FullVersion();
+            }
+            bool operator>(const ShaderModel& other) const noexcept
+            {
+                return other < *this;
+            }
+            bool operator<=(const ShaderModel& other) const noexcept
+            {
+                return (*this < other) || (*this == other);
+            }
+            bool operator>=(const ShaderModel& other) const noexcept
+            {
+                return (*this > other) || (*this == other);
+            }
+        };
+
         struct SourceDesc
         {
-            std::string source;
-            std::string fileName;
-            std::string entryPoint;
+            const char* source;
+            const char* fileName;
+            const char* entryPoint;
             ShaderStage stage;
-            std::vector<MacroDefine> defines;
-            std::function<std::string(const std::string& includeName)> loadIncludeCallback;
+            const MacroDefine* defines;
+            uint32_t numDefines;
+            std::function<Blob*(const char* includeName)> loadIncludeCallback;
+        };
+
+        struct Options
+        {
+            bool packMatricesInRowMajor = true; // Experimental: Decide how a matrix get packed
+            bool enable16bitTypes = false; // Enable 16-bit types, such as half, uint16_t. Requires shader model 6.2+
+            bool enableDebugInfo = false; // Embed debug info into the binary
+            bool disableOptimizations = false; // Force to turn off optimizations. Ignore optimizationLevel below.
+
+            int optimizationLevel = 3; // 0 to 3, no optimization to most optimization
+            ShaderModel shaderModel = { 6, 0 };
         };
 
         struct TargetDesc
         {
             ShadingLanguage language;
-            std::string version;
+            const char* version;
         };
 
         struct ResultDesc
         {
-            std::vector<uint8_t> target;
+            Blob* target;
             bool isText;
 
-            std::string errorWarningMsg;
+            Blob* errorWarningMsg;
             bool hasError;
         };
 
         struct DisassembleDesc
         {
             ShadingLanguage language;
-            std::vector<uint8_t> binary;
+            uint8_t* binary;
+            uint32_t binarySize;
         };
 
     public:
-        static ResultDesc Compile(SourceDesc source, TargetDesc target);
-        static ResultDesc Disassemble(DisassembleDesc source);
+        static ResultDesc Compile(const SourceDesc& source, const Options& options, const TargetDesc& target);
+        static void Compile(const SourceDesc& source, const Options& options, const TargetDesc* targets, uint32_t numTargets,
+                            ResultDesc* results);
+        static ResultDesc Disassemble(const DisassembleDesc& source);
     };
 } // namespace ShaderConductor
 

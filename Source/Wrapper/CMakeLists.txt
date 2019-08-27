@@ -39,5 +39,7 @@ set_source_files_properties(${DATA_FILES}
 )
 
 add_executable(${CSHARP_TEST} ${SOURCE_FILES} ${DATA_FILES})
+add_dependencies(${CSHARP_TEST} ShaderConductorWrapper)
 
 set_target_properties(${CSHARP_TEST} PROPERTIES FOLDER "Wrapper")
+

@@ -49,125 +49,138 @@ namespace
         if (file)
         {
             file.seekg(0, std::ios::end);
-            ret.resize(file.tellg());
+            ret.resize(static_cast<size_t>(file.tellg()));
             file.seekg(0, std::ios::beg);
             file.read(reinterpret_cast<char*>(ret.data()), ret.size());
+            ret.resize(static_cast<size_t>(file.gcount()));
         }
         return ret;
     }
 
-    void TrimTailingZeros(std::vector<uint8_t>* data)
+    void CompareWithExpected(const std::vector<uint8_t>& actual, bool isText, const std::string& compareName)
     {
-        assert(data != nullptr);
-
-        while (!data->empty() && (data->back() == '\0'))
+        std::vector<uint8_t> expected = LoadFile(TEST_DATA_DIR "Expected/" + compareName, isText);
+        if (expected != actual)
         {
-            data->pop_back();
+            if (!actual.empty())
+            {
+                std::ios_base::openmode mode = std::ios_base::out;
+                if (!isText)
+                {
+                    mode |= std::ios_base::binary;
+                }
+                std::ofstream actualFile(TEST_DATA_DIR "Result/" + compareName, mode);
+                actualFile.write(reinterpret_cast<const char*>(actual.data()), actual.size());
+            }
+
+            EXPECT_TRUE(false);
         }
     }
 
-    void HlslToAnyTest(const std::string& name, const Compiler::SourceDesc& source, const Compiler::TargetDesc& target, bool expectSuccess)
+    void HlslToAnyTest(const std::string& name, const Compiler::SourceDesc& source, const Compiler::Options& options,
+                       const std::vector<Compiler::TargetDesc>& targets, const std::vector<bool>& expectSuccessFlags)
     {
-        static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl" };
+        static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl", "msl" };
         static_assert(sizeof(extMap) / sizeof(extMap[0]) == static_cast<uint32_t>(ShadingLanguage::NumShadingLanguages),
                       "extMap doesn't match with the number of shading languages.");
 
-        const auto result = Compiler::Compile(source, target);
-
-        if (expectSuccess)
+        std::vector<Compiler::ResultDesc> results(targets.size());
+        Compiler::Compile(source, options, targets.data(), static_cast<uint32_t>(targets.size()), results.data());
+        for (size_t i = 0; i < targets.size(); ++i)
         {
-            EXPECT_FALSE(result.hasError);
-            EXPECT_STREQ(result.errorWarningMsg.c_str(), "");
-            EXPECT_TRUE(result.isText);
-
-            std::string compareName = name;
-            if (!target.version.empty())
+            const auto& result = results[i];
+            if (expectSuccessFlags[i])
             {
-                compareName += "." + target.version;
-            }
-            compareName += "." + extMap[static_cast<uint32_t>(target.language)];
+                EXPECT_FALSE(result.hasError);
+                EXPECT_EQ(result.errorWarningMsg, nullptr);
+                EXPECT_TRUE(result.isText);
 
-            std::vector<uint8_t> expected = LoadFile(TEST_DATA_DIR "Expected/" + compareName, result.isText);
-            if (result.isText)
-            {
-                TrimTailingZeros(&expected);
-            }
-
-            const auto& actual = result.target;
-            if (expected != actual)
-            {
-                if (!actual.empty())
+                std::string compareName = name;
+                if (targets[i].version != nullptr)
                 {
-                    std::ios_base::openmode mode = std::ios_base::out;
-                    if (!result.isText)
-                    {
-                        mode |= std::ios_base::binary;
-                    }
-                    std::ofstream actualFile(TEST_DATA_DIR "Result/" + compareName, mode);
-                    actualFile.write(reinterpret_cast<const char*>(actual.data()), actual.size());
+                    compareName += "." + std::string(targets[i].version);
                 }
+                compareName += "." + extMap[static_cast<uint32_t>(targets[i].language)];
 
-                EXPECT_TRUE(false);
+                const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
+                CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, compareName);
             }
-        }
-        else
-        {
-            EXPECT_TRUE(result.hasError);
-            EXPECT_TRUE(result.target.empty());
+            else
+            {
+                EXPECT_TRUE(result.hasError);
+                EXPECT_EQ(result.target, nullptr);
+            }
+
+            DestroyBlob(result.errorWarningMsg);
+            DestroyBlob(result.target);
         }
     }
 
     class TestBase : public testing::Test
     {
     public:
+        TestBase()
+        {
+            m_expectSuccessFlags.assign(m_testTargets.size(), true);
+        }
+
         void SetUp() override
         {
-            for (auto& src : m_combinations)
+            for (auto& src : m_testSources)
             {
                 const std::string& name = std::get<0>(src);
                 Compiler::SourceDesc& source = std::get<1>(src);
 
-                source.fileName = TEST_DATA_DIR "Input/" + name + ".hlsl";
+                std::get<2>(src) = TEST_DATA_DIR "Input/" + name + ".hlsl";
+                source.fileName = std::get<2>(src).c_str();
 
                 std::vector<uint8_t> input = LoadFile(source.fileName, true);
-                TrimTailingZeros(&input);
-                source.source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+                std::get<3>(src) = std::string(reinterpret_cast<char*>(input.data()), input.size());
+                source.source = std::get<3>(src).c_str();
             }
         }
 
-        void RunTests(ShadingLanguage targetSl)
+        void RunTests(ShadingLanguage targetSl, const Compiler::Options& options = {})
         {
-            for (const auto& combination : m_combinations)
+            for (const auto& combination : m_testSources)
             {
-                for (const auto& target : std::get<2>(combination))
+                std::vector<Compiler::TargetDesc> targetSubset;
+                std::vector<bool> expectSuccessSubset;
+                for (size_t i = 0; i < m_testTargets.size(); ++i)
                 {
-                    if (std::get<1>(target).language == targetSl)
+                    if (m_testTargets[i].language == targetSl)
                     {
-                        HlslToAnyTest(std::get<0>(combination), std::get<1>(combination), std::get<1>(target), std::get<0>(target));
+                        targetSubset.push_back(m_testTargets[i]);
+                        expectSuccessSubset.push_back(m_expectSuccessFlags[i]);
                     }
                 }
+
+                HlslToAnyTest(std::get<0>(combination), std::get<1>(combination), options, targetSubset, expectSuccessSubset);
             }
         }
 
     protected:
-        std::vector<std::tuple<std::string, Compiler::SourceDesc, std::vector<std::tuple<bool, Compiler::TargetDesc>>>> m_combinations;
+        // test name, source desc, input file name, input source
+        std::vector<std::tuple<std::string, Compiler::SourceDesc, std::string, std::string>> m_testSources;
 
         // clang-format off
-        const std::vector<std::tuple<bool, Compiler::TargetDesc>> m_allTestTargets =
+        const std::vector<Compiler::TargetDesc> m_testTargets =
         {
-            { true, { ShadingLanguage::Hlsl, "30" } },
-            { true, { ShadingLanguage::Hlsl, "40" } },
-            { true, { ShadingLanguage::Hlsl, "50" } },
+            { ShadingLanguage::Hlsl, "30" },
+            { ShadingLanguage::Hlsl, "40" },
+            { ShadingLanguage::Hlsl, "50" },
 
-            { true, { ShadingLanguage::Glsl, "300" } },
-            { true, { ShadingLanguage::Glsl, "410" } },
+            { ShadingLanguage::Glsl, "300" },
+            { ShadingLanguage::Glsl, "410" },
 
-            { true, { ShadingLanguage::Essl, "300" } },
-            { true, { ShadingLanguage::Essl, "310" } },
+            { ShadingLanguage::Essl, "300" },
+            { ShadingLanguage::Essl, "310" },
 
-            { true, { ShadingLanguage::Msl } },
+            { ShadingLanguage::Msl_macOS },
         };
         // clang-format on
+
+        std::vector<bool> m_expectSuccessFlags;
     };
 
     class VertexShaderTest : public TestBase
@@ -176,22 +189,25 @@ namespace
         void SetUp() override
         {
             // clang-format off
-            m_combinations =
+            m_testSources =
             {
                 {
                     "Constant_VS",
                     { "", "", "VSMain", ShaderStage::VertexShader },
-                    m_allTestTargets,
+                    "",
+                    ""
                 },
                 {
                     "PassThrough_VS",
                     { "", "", "VSMain", ShaderStage::VertexShader },
-                    m_allTestTargets,
+                    "",
+                    ""
                 },
                 {
                     "Transform_VS",
                     { "", "", "", ShaderStage::VertexShader },
-                    m_allTestTargets,
+                    "",
+                    ""
                 },
             };
             // clang-format on
@@ -206,22 +222,25 @@ namespace
         void SetUp() override
         {
             // clang-format off
-            m_combinations =
+            m_testSources =
             {
                 {
                     "Constant_PS",
                     { "", "", "PSMain", ShaderStage::PixelShader },
-                    m_allTestTargets,
+                    "",
+                    ""
                 },
                 {
                     "PassThrough_PS",
                     { "", "", "PSMain", ShaderStage::PixelShader },
-                    m_allTestTargets,
+                    "",
+                    ""
                 },
                 {
                     "ToneMapping_PS",
                     { "", "", "", ShaderStage::PixelShader },
-                    m_allTestTargets,
+                    "",
+                    ""
                 },
             };
             // clang-format on
@@ -236,30 +255,27 @@ namespace
         void SetUp() override
         {
             // clang-format off
-            m_combinations =
+            m_testSources =
             {
                 {
                     "Particle_GS",
-                    { "", "", "", ShaderStage::GeometryShader, { { "FIXED_VERTEX_RADIUS", "5.0" } } },
-                    {
-                        { false, { ShadingLanguage::Hlsl, "30" } }, // No GS in HLSL SM3
-                        { false, { ShadingLanguage::Hlsl, "40" } }, // GS not supported yet
-                        { false, { ShadingLanguage::Hlsl, "50" } }, // GS not supported yet
-
-                        { true, { ShadingLanguage::Glsl, "300" } },
-                        { true, { ShadingLanguage::Glsl, "410" } },
-
-                        { true, { ShadingLanguage::Essl, "300" } },
-                        { true, { ShadingLanguage::Essl, "310" } },
-
-                        { false, { ShadingLanguage::Msl } }, // No GS in MSL
-                    },
+                    { "", "", "", ShaderStage::GeometryShader, defines_.data(), static_cast<uint32_t>(defines_.size()) },
+                    "",
+                    ""
                 },
             };
             // clang-format on
 
+            m_expectSuccessFlags[0] = false; // No GS in HLSL SM3
+            m_expectSuccessFlags[1] = false; // GS not supported yet
+            m_expectSuccessFlags[2] = false; // GS not supported yet
+            m_expectSuccessFlags[7] = false; // No GS in MSL
+
             TestBase::SetUp();
         }
+
+    private:
+        std::vector<MacroDefine> defines_ = { { "FIXED_VERTEX_RADIUS", "5.0" } };
     };
 
     class HullShaderTest : public TestBase
@@ -268,27 +284,20 @@ namespace
         void SetUp() override
         {
             // clang-format off
-            m_combinations =
+            m_testSources =
             {
                 {
                     "DetailTessellation_HS",
                     { "", "", "", ShaderStage::HullShader },
-                    {
-                        { false, { ShadingLanguage::Hlsl, "30" } }, // No HS in HLSL SM3
-                        { false, { ShadingLanguage::Hlsl, "40" } }, // No HS in HLSL SM4
-                        { false, { ShadingLanguage::Hlsl, "50" } }, // HS not supported yet
-
-                        { true, { ShadingLanguage::Glsl, "300" } },
-                        { true, { ShadingLanguage::Glsl, "410" } },
-
-                        { true, { ShadingLanguage::Essl, "300" } },
-                        { true, { ShadingLanguage::Essl, "310" } },
-
-                        { true, { ShadingLanguage::Msl } },
-                    },
+                    "",
+                    ""
                 },
             };
             // clang-format on
+
+            m_expectSuccessFlags[0] = false; // No HS in HLSL SM3
+            m_expectSuccessFlags[1] = false; // No HS in HLSL SM4
+            m_expectSuccessFlags[2] = false; // HS not supported yet
 
             TestBase::SetUp();
         }
@@ -300,27 +309,20 @@ namespace
         void SetUp() override
         {
             // clang-format off
-            m_combinations =
+            m_testSources =
             {
                 {
                     "PNTriangles_DS",
                     { "", "", "", ShaderStage::DomainShader },
-                    {
-                        { false, { ShadingLanguage::Hlsl, "30" } }, // No HS in HLSL SM3
-                        { false, { ShadingLanguage::Hlsl, "40" } }, // No HS in HLSL SM4
-                        { false, { ShadingLanguage::Hlsl, "50" } }, // DS not supported yet
-
-                        { true, { ShadingLanguage::Glsl, "300" } },
-                        { true, { ShadingLanguage::Glsl, "410" } },
-
-                        { true, { ShadingLanguage::Essl, "300" } },
-                        { true, { ShadingLanguage::Essl, "310" } },
-
-                        { true, { ShadingLanguage::Msl } },
-                    },
+                    "",
+                    ""
                 },
             };
             // clang-format on
+
+            m_expectSuccessFlags[0] = false; // No HS in HLSL SM3
+            m_expectSuccessFlags[1] = false; // No HS in HLSL SM4
+            m_expectSuccessFlags[2] = false; // DS not supported yet
 
             TestBase::SetUp();
         }
@@ -332,27 +334,20 @@ namespace
         void SetUp() override
         {
             // clang-format off
-            m_combinations =
+            m_testSources =
             {
                 {
                     "Fluid_CS",
                     { "", "", "", ShaderStage::ComputeShader },
-                    {
-                        { false, { ShadingLanguage::Hlsl, "30" } }, // No CS in HLSL SM3
-                        { false, { ShadingLanguage::Hlsl, "40" } }, // CS in HLSL SM4 is not supported
-                        { true, { ShadingLanguage::Hlsl, "50" } },
-
-                        { true, { ShadingLanguage::Glsl, "300" } },
-                        { true, { ShadingLanguage::Glsl, "410" } },
-
-                        { false, { ShadingLanguage::Essl, "300" } }, // No CS in OpenGL ES 3.0
-                        { true, { ShadingLanguage::Essl, "310" } },
-
-                        { true, { ShadingLanguage::Msl } },
-                    },
+                    "",
+                    ""
                 },
             };
             // clang-format on
+
+            m_expectSuccessFlags[0] = false; // No CS in HLSL SM3
+            m_expectSuccessFlags[1] = false; // CS in HLSL SM4 is not supported
+            m_expectSuccessFlags[5] = false; // No CS in OpenGL ES 3.0
 
             TestBase::SetUp();
         }
@@ -369,6 +364,20 @@ namespace
         RunTests(ShadingLanguage::Glsl);
     }
 
+    TEST_F(VertexShaderTest, ToGlslColumnMajor)
+    {
+        const std::string fileName = TEST_DATA_DIR "Input/Transform_VS.hlsl";
+
+        std::vector<uint8_t> input = LoadFile(fileName, true);
+        const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+
+        Compiler::Options options;
+        options.packMatricesInRowMajor = false;
+
+        HlslToAnyTest("Transform_VS_ColumnMajor", { source.c_str(), fileName.c_str(), nullptr, ShaderStage::VertexShader }, options,
+                      { { ShadingLanguage::Glsl, "300" } }, { true });
+    }
+
     TEST_F(VertexShaderTest, ToEssl)
     {
         RunTests(ShadingLanguage::Essl);
@@ -376,7 +385,7 @@ namespace
 
     TEST_F(VertexShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
     }
 
 
@@ -397,7 +406,7 @@ namespace
 
     TEST_F(PixelShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
     }
 
 
@@ -418,7 +427,7 @@ namespace
 
     TEST_F(GeometryShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
     }
 
 
@@ -439,7 +448,7 @@ namespace
 
     TEST_F(HullShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
     }
 
 
@@ -460,7 +469,7 @@ namespace
 
     TEST_F(DomainShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
     }
 
 
@@ -481,7 +490,115 @@ namespace
 
     TEST_F(ComputeShaderTest, ToMsl)
     {
-        RunTests(ShadingLanguage::Msl);
+        RunTests(ShadingLanguage::Msl_macOS);
+    }
+
+    TEST(IncludeTest, IncludeExist)
+    {
+        const std::string fileName = TEST_DATA_DIR "Input/IncludeExist.hlsl";
+
+        std::vector<uint8_t> input = LoadFile(fileName, true);
+        const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+
+        const auto result =
+            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, {}, { ShadingLanguage::Glsl, "30" });
+
+        EXPECT_FALSE(result.hasError);
+        EXPECT_EQ(result.errorWarningMsg, nullptr);
+        EXPECT_TRUE(result.isText);
+
+        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
+        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, "IncludeExist.glsl");
+
+        DestroyBlob(result.errorWarningMsg);
+        DestroyBlob(result.target);
+    }
+
+    TEST(IncludeTest, IncludeNotExist)
+    {
+        const std::string fileName = TEST_DATA_DIR "Input/IncludeNotExist.hlsl";
+
+        std::vector<uint8_t> input = LoadFile(fileName, true);
+        const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+
+        const auto result =
+            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, {}, { ShadingLanguage::Glsl, "30" });
+
+        EXPECT_TRUE(result.hasError);
+        const char* errorStr = reinterpret_cast<const char*>(result.errorWarningMsg->Data());
+        EXPECT_GE(std::string(errorStr, errorStr + result.errorWarningMsg->Size()).find("fatal error: 'Header.hlsli' file not found"), 0U);
+
+        DestroyBlob(result.errorWarningMsg);
+        DestroyBlob(result.target);
+    }
+
+    TEST(IncludeTest, IncludeEmptyFile)
+    {
+        const std::string fileName = TEST_DATA_DIR "Input/IncludeEmptyHeader.hlsl";
+
+        std::vector<uint8_t> input = LoadFile(fileName, true);
+        const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+
+        const auto result =
+            Compiler::Compile({ source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader }, {}, { ShadingLanguage::Glsl, "30" });
+
+        EXPECT_FALSE(result.hasError);
+        EXPECT_EQ(result.errorWarningMsg, nullptr);
+        EXPECT_TRUE(result.isText);
+
+        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
+        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, "IncludeEmptyHeader.glsl");
+
+        DestroyBlob(result.errorWarningMsg);
+        DestroyBlob(result.target);
+    }
+
+    TEST(HalfDataTypeTest, DotHalf)
+    {
+        const std::string fileName = TEST_DATA_DIR "Input/HalfDataType.hlsl";
+
+        std::vector<uint8_t> input = LoadFile(fileName, true);
+        const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+
+        Compiler::Options option;
+        option.shaderModel = { 6, 2 };
+        option.enable16bitTypes = true;
+
+        const auto result = Compiler::Compile({ source.c_str(), fileName.c_str(), "DotHalfPS", ShaderStage::PixelShader }, option,
+                                              { ShadingLanguage::Glsl, "30" });
+
+        EXPECT_FALSE(result.hasError);
+        EXPECT_TRUE(result.isText);
+
+        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
+        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, "DotHalfPS.glsl");
+
+        DestroyBlob(result.errorWarningMsg);
+        DestroyBlob(result.target);
+    }
+
+    TEST(HalfDataTypeTest, HalfOutParam)
+    {
+        const std::string fileName = TEST_DATA_DIR "Input/HalfDataType.hlsl";
+
+        std::vector<uint8_t> input = LoadFile(fileName, true);
+        const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+
+        Compiler::Options option;
+        option.shaderModel = { 6, 2 };
+        option.enable16bitTypes = true;
+
+        const auto result = Compiler::Compile({ source.c_str(), fileName.c_str(), "HalfOutParamPS", ShaderStage::PixelShader }, option,
+            { ShadingLanguage::Glsl, "30" });
+
+        EXPECT_FALSE(result.hasError);
+        EXPECT_TRUE(result.isText);
+
+        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
+        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, "HalfOutParamPS.glsl");
+
+        DestroyBlob(result.errorWarningMsg);
+        DestroyBlob(result.target);
     }
 } // namespace
 

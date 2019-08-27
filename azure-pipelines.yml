@@ -7,12 +7,71 @@ resources:
   fetchDepth: 5
 
 jobs:
-- job: Windows_vc140
+- job: Windows_vc140_x64
   pool:
     vmImage: VS2017-Win2016
 
   variables:
     compiler: vc140
+    combination: 'win-$(compiler)-$(platform)-$(configuration)'
+    buildFolder: 'Build/ninja-$(combination)'
+    installCommand: 'choco install ninja python3'
+    testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
+    artifactBinaries: |
+      Bin/ShaderConductor.dll
+      Bin/ShaderConductorCmd.exe
+      Bin/dxcompiler.dll
+      Lib/ShaderConductor.lib
+
+  steps:
+  - template: CI/AzurePipelines/ContinuousBuild.yml
+
+- job: Windows_vc141_x86
+  pool:
+    vmImage: VS2017-Win2016
+
+  variables:
+    compiler: vc141
+    platform: x86
+    combination: 'win-$(compiler)-$(platform)-$(configuration)'
+    buildFolder: 'Build/ninja-$(combination)'
+    installCommand: 'choco install ninja python3'
+    testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
+    artifactBinaries: |
+      Bin/ShaderConductor.dll
+      Bin/ShaderConductorCmd.exe
+      Bin/dxcompiler.dll
+      Lib/ShaderConductor.lib
+
+  steps:
+  - template: CI/AzurePipelines/ContinuousBuild.yml
+
+- job: Windows_vc141_x64
+  pool:
+    vmImage: VS2017-Win2016
+
+  variables:
+    compiler: vc141
+    combination: 'win-$(compiler)-$(platform)-$(configuration)'
+    buildFolder: 'Build/ninja-$(combination)'
+    installCommand: 'choco install ninja python3'
+    testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
+    artifactBinaries: |
+      Bin/ShaderConductor.dll
+      Bin/ShaderConductorCmd.exe
+      Bin/dxcompiler.dll
+      Lib/ShaderConductor.lib
+
+  steps:
+  - template: CI/AzurePipelines/ContinuousBuild.yml
+
+- job: Windows_vc142_x86
+  pool:
+    vmImage: windows-2019
+
+  variables:
+    compiler: vc142
+    platform: x86
     combination: 'win-$(compiler)-$(platform)-$(configuration)'
     buildFolder: 'Build/ninja-$(combination)'
     installCommand: 'choco install ninja'
@@ -26,12 +85,12 @@ jobs:
   steps:
   - template: CI/AzurePipelines/ContinuousBuild.yml
 
-- job: Windows_vc141
+- job: Windows_vc142_x64
   pool:
-    vmImage: VS2017-Win2016
+    vmImage: windows-2019
 
   variables:
-    compiler: vc141
+    compiler: vc142
     combination: 'win-$(compiler)-$(platform)-$(configuration)'
     buildFolder: 'Build/ninja-$(combination)'
     installCommand: 'choco install ninja'
@@ -56,7 +115,7 @@ jobs:
     installCommand: |
       sudo add-apt-repository ppa:ubuntu-toolchain-r/test
       sudo apt-get update
-      sudo apt-get install g++-7 ninja-build
+      sudo apt-get install g++-7 ninja-build python3
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd
@@ -79,7 +138,7 @@ jobs:
     installCommand: |
       sudo add-apt-repository ppa:ubuntu-toolchain-r/test
       sudo apt-get update
-      sudo apt-get install g++-8 ninja-build
+      sudo apt-get install g++-8 ninja-build python3
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd
@@ -103,7 +162,7 @@ jobs:
       sudo add-apt-repository ppa:llvm-toolchain-xenial-6.0/main
       sudo add-apt-repository ppa:ubuntu-toolchain-r/test
       sudo apt-get update
-      sudo apt-get install clang-6.0 libstdc++-6-dev lld-6.0 ninja-build
+      sudo apt-get install clang-6.0 libstdc++-6-dev lld-6.0 ninja-build python3
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd
@@ -128,7 +187,7 @@ jobs:
       sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main"
       sudo add-apt-repository ppa:ubuntu-toolchain-r/test
       sudo apt-get update
-      sudo apt-get install clang-7 libstdc++-7-dev lld-7 ninja-build
+      sudo apt-get install clang-7 libstdc++-7-dev lld-7 ninja-build python3
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd
@@ -150,7 +209,7 @@ jobs:
     buildFolder: 'Build/ninja-$(combination)'
     installCommand: |
       brew update
-      brew install ninja
+      brew install ninja python3
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd

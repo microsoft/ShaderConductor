@@ -39,21 +39,21 @@ def FindProgramFilesFolder():
 			programFilesFolder = "C:\Program Files"
 	return programFilesFolder
 
-def FindVS2017Folder(programFilesFolder):
+def FindVS2017OrUpFolder(programFilesFolder, vsVersion, vsName):
 	tryVswhereLocation = programFilesFolder + "\\Microsoft Visual Studio\\Installer\\vswhere.exe"
 	if os.path.exists(tryVswhereLocation):
 		vsLocation = subprocess.check_output([tryVswhereLocation,
 			"-latest",
 			"-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
 			"-property", "installationPath",
-			"-version", "[15.0,16.0)",
+			"-version", "[%d.0,%d.0)" % (vsVersion, vsVersion + 1),
 			"-prerelease"]).decode().split("\r\n")[0]
 		tryFolder = vsLocation + "\\VC\\Auxiliary\\Build\\"
 		tryVcvarsall = "VCVARSALL.BAT"
 		if os.path.exists(tryFolder + tryVcvarsall):
 			return tryFolder
 	else:
-		names = ("Preview", "2017")
+		names = ("Preview", vsName)
 		skus = ("Community", "Professional", "Enterprise")
 		for name in names:
 			for sku in skus:
@@ -61,8 +61,14 @@ def FindVS2017Folder(programFilesFolder):
 				tryVcvarsall = "VCVARSALL.BAT"
 				if os.path.exists(tryFolder + tryVcvarsall):
 					return tryFolder
-	LogError("Could NOT find VS2017.\n")
+	LogError("Could NOT find VS%s.\n" % vsName)
 	return ""
+
+def FindVS2019Folder(programFilesFolder):
+	return FindVS2017OrUpFolder(programFilesFolder, 16, "2019")
+
+def FindVS2017Folder(programFilesFolder):
+	return FindVS2017OrUpFolder(programFilesFolder, 15, "2017")
 
 def FindVS2015Folder(programFilesFolder):
 	env = os.environ
@@ -120,13 +126,15 @@ if __name__ == "__main__":
 		buildSys = sys.argv[1]
 	else:
 		if hostPlatform == "win":
-			buildSys = "vs2017"
+			buildSys = "vs2019"
 		else:
 			buildSys = "ninja"
 	if (argc > 2):
 		compiler = sys.argv[2]
 	else:
-		if buildSys == "vs2017":
+		if buildSys == "vs2019":
+			compiler = "vc142"
+		elif buildSys == "vs2017":
 			compiler = "vc141"
 		elif buildSys == "vs2015":
 			compiler = "vc140"
@@ -156,18 +164,31 @@ if __name__ == "__main__":
 	batCmd = BatchCommand(hostPlatform)
 	if hostPlatform == "win":
 		programFilesFolder = FindProgramFilesFolder()
-		if (buildSys == "vs2017") or ((buildSys == "ninja") and (compiler == "vc141")):
+		if (buildSys == "vs2019") or ((buildSys == "ninja") and (compiler == "vc142")):
+			vsFolder = FindVS2019Folder(programFilesFolder)
+		elif (buildSys == "vs2017") or ((buildSys == "ninja") and (compiler == "vc141")):
 			vsFolder = FindVS2017Folder(programFilesFolder)
 		elif (buildSys == "vs2015") or ((buildSys == "ninja") and (compiler == "vc140")):
 			vsFolder = FindVS2015Folder(programFilesFolder)
 		if "x64" == arch:
 			vcOption = "amd64"
+			vcArch = "x64"
 		elif "x86" == arch:
 			vcOption = "x86"
+			vcArch = "Win32"
+		elif "arm64" == arch:
+			vcOption = "amd64_arm64"
+			vcArch = "ARM64"
+		elif "arm" == arch:
+			vcOption = "amd64_arm"
+			vcArch = "ARM"
 		else:
 			LogError("Unsupported architecture.\n")
 		vcToolset = ""
-		if (buildSys == "vs2017") and (compiler == "vc140"):
+		if (buildSys == "vs2019") and (compiler == "vc141"):
+			vcOption += " -vcvars_ver=14.1"
+			vcToolset = "v141,"
+		elif ((buildSys == "vs2019") or (buildSys == "vs2017")) and (compiler == "vc140"):
 			vcOption += " -vcvars_ver=14.0"
 			vcToolset = "v140,"
 		batCmd.AddCommand("@call \"%sVCVARSALL.BAT\" %s" % (vsFolder, vcOption))
@@ -179,12 +200,14 @@ if __name__ == "__main__":
 		batCmd.AddCommand("cmake -G Ninja -DCMAKE_BUILD_TYPE=\"%s\" -DSC_ARCH_NAME=\"%s\" ../../" % (configuration, arch))
 		batCmd.AddCommand("ninja -j%d" % parallel)
 	else:
-		if buildSys == "vs2017":
+		if buildSys == "vs2019":
+			generator = "\"Visual Studio 16\""
+		elif buildSys == "vs2017":
 			generator = "\"Visual Studio 15\""
 		elif buildSys == "vs2015":
 			generator = "\"Visual Studio 14\""
-		batCmd.AddCommand("cmake -G %s -T %shost=x64 -A %s ../../" % (generator, vcToolset, arch))
-		batCmd.AddCommand("MSBuild ALL_BUILD.vcxproj /nologo /m:%d /v:m /p:Configuration=%s,Platform=%s" % (parallel, configuration, arch))
+		batCmd.AddCommand("cmake -G %s -T %shost=x64 -A %s ../../" % (generator, vcToolset, vcArch))
+		batCmd.AddCommand("MSBuild ALL_BUILD.vcxproj /nologo /m:%d /v:m /p:Configuration=%s,Platform=%s" % (parallel, configuration, vcArch))
 	if batCmd.Execute() != 0:
 		LogError("Build failed.\n")
 

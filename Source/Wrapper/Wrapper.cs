@@ -41,8 +41,17 @@ namespace CSharpConsole
         public static extern void Disassemble([In] ref DisassembleDesc source, out ResultDesc result);
 
         [DllImport("ShaderConductorWrapper.dll", CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void FreeResources();
-        
+        public static extern IntPtr CreateShaderConductorBlob(IntPtr data, int size);
+
+        [DllImport("ShaderConductorWrapper.dll", CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void DestroyShaderConductorBlob(IntPtr blob);
+
+        [DllImport("ShaderConductorWrapper.dll", CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr GetShaderConductorBlobData(IntPtr blob);
+
+        [DllImport("ShaderConductorWrapper.dll", CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int GetShaderConductorBlobSize(IntPtr blob);
+
         public enum ShaderStage
         {
             VertexShader,
@@ -93,19 +102,18 @@ namespace CSharpConsole
         [StructLayout(LayoutKind.Sequential)]
         public struct ResultDesc
         {
-            public bool isText;
             public IntPtr target;
-            public int targetSize;
+            public bool isText;
+            public IntPtr errorWarningMsg;
             public bool hasError;
-            public IntPtr errorWarningMsg;           
         }
       
         [StructLayout(LayoutKind.Sequential)]
         public struct DisassembleDesc
         {
             public ShadingLanguage language;
-            public int binarySize;
             public IntPtr binary;
+            public int binarySize;
         }
     }
 }
