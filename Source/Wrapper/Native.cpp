@@ -29,8 +29,8 @@
 
 using namespace ShaderConductor;
 
-void Compile(SourceDescription* source, TargetDescription* target, ResultDescription* result)
-{
+void Compile(SourceDescription* source, OptionsDescription* optionsDesc, TargetDescription* target, ResultDescription* result)
+{    
     Compiler::SourceDesc sourceDesc;
     sourceDesc.entryPoint = source->entryPoint;
     sourceDesc.source = source->source;
@@ -40,6 +40,12 @@ void Compile(SourceDescription* source, TargetDescription* target, ResultDescrip
     sourceDesc.numDefines = 0;
 
     Compiler::Options options;
+    options.packMatricesInRowMajor = optionsDesc->packMatricesInRowMajor;
+    options.enable16bitTypes = optionsDesc->enable16bitTypes;
+    options.enableDebugInfo = optionsDesc->enableDebugInfo;
+    options.disableOptimizations = optionsDesc->disableOptimizations;
+    options.optimizationLevel = optionsDesc->optimizationLevel;
+    options.shaderModel = { static_cast<uint8_t>(optionsDesc->shaderModel.major), static_cast<uint8_t>(optionsDesc->shaderModel.minor) };
 
     Compiler::TargetDesc targetDesc;
     targetDesc.language = target->shadingLanguage;
