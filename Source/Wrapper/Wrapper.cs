@@ -121,6 +121,11 @@ namespace CSharpConsole
 
             public ShaderModel shaderModel;
 
+            public int shiftAllTexturesBindings;
+            public int shiftAllSamplersBindings;
+            public int shiftAllCBuffersBindings;
+            public int shiftAllUABuffersBindings;
+
             public static OptionsDesc Default
             {
                 get

@@ -392,11 +392,11 @@ namespace
         // See also https://antiagainst.github.io/post/hlsl-for-vulkan-matrices/
         if (options.packMatricesInRowMajor)
         {
-            dxcArgStrings.push_back(L"-Zpc");
+            dxcArgStrings.push_back(L"-Zpr");
         }
         else
         {
-            dxcArgStrings.push_back(L"-Zpr");
+            dxcArgStrings.push_back(L"-Zpc");
         }
 
         if (options.enable16bitTypes)
@@ -430,6 +430,34 @@ namespace
             {
                 llvm_unreachable("Invalid optimization level.");
             }
+        }
+
+		if (options.shiftAllCBuffersBindings > 0)
+        {
+            dxcArgStrings.push_back(L"-fvk-b-shift");
+            dxcArgStrings.push_back(std::to_wstring(options.shiftAllCBuffersBindings));
+            dxcArgStrings.push_back(L"all");
+        }
+
+        if (options.shiftAllUABuffersBindings > 0)
+        {
+            dxcArgStrings.push_back(L"-fvk-u-shift");
+            dxcArgStrings.push_back(std::to_wstring(options.shiftAllUABuffersBindings));
+            dxcArgStrings.push_back(L"all");
+        }
+
+        if (options.shiftAllSamplersBindings > 0)
+        {
+            dxcArgStrings.push_back(L"-fvk-s-shift");
+            dxcArgStrings.push_back(std::to_wstring(options.shiftAllSamplersBindings));
+            dxcArgStrings.push_back(L"all");
+        }
+
+        if (options.shiftAllTexturesBindings > 0)
+        {
+            dxcArgStrings.push_back(L"-fvk-t-shift");
+            dxcArgStrings.push_back(std::to_wstring(options.shiftAllTexturesBindings));
+            dxcArgStrings.push_back(L"all");
         }
 
         switch (targetLanguage)
