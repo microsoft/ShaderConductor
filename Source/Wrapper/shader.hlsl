@@ -8,6 +8,7 @@ cbuffer Matrices : register(b0)
 
 Texture2D DiffuseTexture : register(t0);
 SamplerState Sampler : register(s0);
+Texture2D DiffuseTexture2 : register(t1);
 
 struct VS_IN
 {
@@ -36,5 +37,5 @@ PS_IN VS(VS_IN input)
 
 float4 PS(PS_IN input) : SV_Target
 {
-    return DiffuseTexture.Sample(Sampler, input.tex);
+    return DiffuseTexture.Sample(Sampler, input.tex) + DiffuseTexture2.Sample(Sampler, input.tex);
 }

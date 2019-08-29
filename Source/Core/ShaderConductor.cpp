@@ -719,8 +719,9 @@ namespace
 
             for (auto& remap : compiler->get_combined_image_samplers())
             {
-                compiler->set_name(remap.combined_id,
-                                   "SPIRV_Cross_Combined" + compiler->get_name(remap.image_id) + compiler->get_name(remap.sampler_id));
+                uint32_t binding = compiler->get_decoration(remap.image_id, spv::DecorationBinding); // or sampler_id.
+                compiler->set_decoration(remap.combined_id, spv::DecorationBinding, binding);
+                compiler->set_name(remap.combined_id,"SPIRV_Cross_Combined" + compiler->get_name(remap.image_id) + compiler->get_name(remap.sampler_id));
             }
         }
 

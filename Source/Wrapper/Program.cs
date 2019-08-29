@@ -57,7 +57,7 @@ namespace CSharpConsole
 
             Wrapper.TargetDesc targetDesc = new Wrapper.TargetDesc()
             {
-                language = Wrapper.ShadingLanguage.SpirV,
+                language = Wrapper.ShadingLanguage.Glsl,
                 version = "460",
             };
 
