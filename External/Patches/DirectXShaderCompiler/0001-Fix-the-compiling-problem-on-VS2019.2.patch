@@ -1,0 +1,25 @@
+From 895b1301afea91017500a82dd9d709d9941d1abc Mon Sep 17 00:00:00 2001
+From: Minmin Gong <mgong@microsoft.com>
+Date: Wed, 28 Aug 2019 22:52:12 -0700
+Subject: [PATCH] Fix the compiling problem on VS2019.2
+
+---
+ utils/TableGen/AsmWriterEmitter.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/utils/TableGen/AsmWriterEmitter.cpp b/utils/TableGen/AsmWriterEmitter.cpp
+index 8163f681..4372420d 100644
+--- a/utils/TableGen/AsmWriterEmitter.cpp
++++ b/utils/TableGen/AsmWriterEmitter.cpp
+@@ -763,7 +763,7 @@ static unsigned CountNumOperands(StringRef AsmString, unsigned Variant) {
+ namespace {
+ struct AliasPriorityComparator {
+   typedef std::pair<CodeGenInstAlias *, int> ValueType;
+-  bool operator()(const ValueType &LHS, const ValueType &RHS) {
++  bool operator()(const ValueType &LHS, const ValueType &RHS) const {
+     if (LHS.second ==  RHS.second) {
+       // We don't actually care about the order, but for consistency it
+       // shouldn't depend on pointer comparisons.
+-- 
+2.17.1.windows.2
+
