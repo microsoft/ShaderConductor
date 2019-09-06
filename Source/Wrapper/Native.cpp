@@ -30,7 +30,7 @@
 using namespace ShaderConductor;
 
 void Compile(SourceDescription* source, OptionsDescription* optionsDesc, TargetDescription* target, ResultDescription* result)
-{    
+{
     Compiler::SourceDesc sourceDesc;
     sourceDesc.entryPoint = source->entryPoint;
     sourceDesc.source = source->source;
