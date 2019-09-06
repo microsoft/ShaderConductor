@@ -147,14 +147,14 @@ namespace ShaderConductor
         struct Options
         {
             bool packMatricesInRowMajor = true; // Experimental: Decide how a matrix get packed
-            bool enable16bitTypes = false; // Enable 16-bit types, such as half, uint16_t. Requires shader model 6.2+
-            bool enableDebugInfo = false; // Embed debug info into the binary
-            bool disableOptimizations = false; // Force to turn off optimizations. Ignore optimizationLevel below.
+            bool enable16bitTypes = false;      // Enable 16-bit types, such as half, uint16_t. Requires shader model 6.2+
+            bool enableDebugInfo = false;       // Embed debug info into the binary
+            bool disableOptimizations = false;  // Force to turn off optimizations. Ignore optimizationLevel below.
 
             int optimizationLevel = 3; // 0 to 3, no optimization to most optimization
             ShaderModel shaderModel = { 6, 0 };
 
-			int shiftAllTexturesBindings;
+            int shiftAllTexturesBindings;
             int shiftAllSamplersBindings;
             int shiftAllCBuffersBindings;
             int shiftAllUABuffersBindings;
