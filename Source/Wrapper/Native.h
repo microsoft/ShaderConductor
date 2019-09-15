@@ -33,9 +33,26 @@ struct ShaderConductorBlob;
 
 struct SourceDescription
 {
-    const char* source;    
+    const char* source;
     const char* entryPoint;
-    ShaderStage stage;    
+    ShaderStage stage;
+};
+
+struct ShaderModel
+{
+    int major;
+    int minor;
+};
+
+struct OptionsDescription
+{
+    bool packMatricesInRowMajor = true; // Experimental: Decide how a matrix get packed
+    bool enable16bitTypes = false;      // Enable 16-bit types, such as half, uint16_t. Requires shader model 6.2+
+    bool enableDebugInfo = false;       // Embed debug info into the binary
+    bool disableOptimizations = false;  // Force to turn off optimizations. Ignore optimizationLevel below.
+    int optimizationLevel = 3;          // 0 to 3, no optimization to most optimization
+
+    ShaderModel shaderModel = { 6, 0 };
 };
 
 struct TargetDescription
@@ -45,7 +62,7 @@ struct TargetDescription
 };
 
 struct ResultDescription
-{   
+{
     ShaderConductorBlob* target;
     bool isText;
 
@@ -62,7 +79,7 @@ struct DisassembleDescription
 
 #define DLLEXPORT extern "C" __declspec(dllexport)
 
-DLLEXPORT void Compile(SourceDescription* source, TargetDescription* target, ResultDescription* result);
+DLLEXPORT void Compile(SourceDescription* source, OptionsDescription* optionsDesc, TargetDescription* target, ResultDescription* result);
 DLLEXPORT void Disassemble(DisassembleDescription* source, ResultDescription* result);
 
 DLLEXPORT ShaderConductorBlob* CreateShaderConductorBlob(const void* data, int size);
