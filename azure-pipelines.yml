@@ -209,7 +209,7 @@ jobs:
     buildFolder: 'Build/ninja-$(combination)'
     installCommand: |
       brew update
-      brew install ninja python3
+      brew install ninja
     testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
     artifactBinaries: |
       Bin/ShaderConductorCmd
