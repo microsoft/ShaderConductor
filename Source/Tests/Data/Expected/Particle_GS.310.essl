@@ -8,8 +8,8 @@ const vec2 _48[4] = vec2[](vec2(0.0, 1.0), vec2(1.0), vec2(0.0), vec2(1.0, 0.0))
 
 layout(binding = 0, std140) uniform type_cbMain
 {
-    layout(row_major) mat4 invView;
-    layout(row_major) mat4 viewProj;
+    mat4 invView;
+    mat4 viewProj;
 } cbMain;
 
 layout(location = 0) in vec4 in_var_POSITION[1];
