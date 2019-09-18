@@ -38,11 +38,23 @@ function(UpdateExternalLib name url rev)
     endif()
 endfunction()
 
+function(ApplyPatch name patch)
+    set(external_folder "${SC_ROOT_DIR}/External")
+    set(external_lib_folder "${external_folder}/${name}")
+
+    execute_process(COMMAND "${git_executable}" "apply" "--check" "--ignore-space-change" "${patch}" WORKING_DIRECTORY ${external_lib_folder} RESULT_VARIABLE checkout_err)
+    if(NOT checkout_err)
+        message(STATUS "Applying ${patch}...")
+        execute_process(COMMAND "${git_executable}" "am" "--ignore-space-change" "${patch}" WORKING_DIRECTORY ${external_lib_folder})
+    endif()
+endfunction()
+
 UpdateExternalLib("cxxopts" "https://github.com/jarro2783/cxxopts.git" ${cxxopts_REV})
 UpdateExternalLib("googletest" "https://github.com/google/googletest.git" ${googletest_REV})
 UpdateExternalLib("SPIRV-Headers" "https://github.com/KhronosGroup/SPIRV-Headers.git" ${SPIRV_Headers_REV})
 UpdateExternalLib("SPIRV-Tools" "https://github.com/KhronosGroup/SPIRV-Tools.git" ${SPIRV_Tools_REV})
 UpdateExternalLib("DirectXShaderCompiler" "https://github.com/Microsoft/DirectXShaderCompiler.git" ${DirectXShaderCompiler_REV})
+ApplyPatch("DirectXShaderCompiler" "${CMAKE_CURRENT_SOURCE_DIR}/Patches/DirectXShaderCompiler/0001-Fix-the-compiling-problem-on-VS2019.2.patch")
 UpdateExternalLib("SPIRV-Cross" "https://github.com/KhronosGroup/SPIRV-Cross.git" ${SPIRV_Cross_REV})
 
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)

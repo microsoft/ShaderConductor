@@ -200,8 +200,8 @@ namespace
             }
 
             *includeSource = nullptr;
-            return Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(
-                source->Data(), source->Size(), CP_UTF8, reinterpret_cast<IDxcBlobEncoding**>(includeSource));
+            return Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(source->Data(), source->Size(), CP_UTF8,
+                                                                                      reinterpret_cast<IDxcBlobEncoding**>(includeSource));
         }
 
         ULONG STDMETHODCALLTYPE AddRef() override
@@ -432,7 +432,7 @@ namespace
             }
         }
 
-		if (options.shiftAllCBuffersBindings > 0)
+        if (options.shiftAllCBuffersBindings > 0)
         {
             dxcArgStrings.push_back(L"-fvk-b-shift");
             dxcArgStrings.push_back(std::to_wstring(options.shiftAllCBuffersBindings));
