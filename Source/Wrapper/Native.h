@@ -98,7 +98,8 @@ struct DisassembleDescription
 #define SC_SYMBOL_IMPORT __declspec(dllimport)
 #endif
 
-SC_SYMBOL_EXPORT void Compile(SourceDescription* source, OptionsDescription* optionsDesc, TargetDescription* target, ResultDescription* result);
+SC_SYMBOL_EXPORT void Compile(SourceDescription* source, OptionsDescription* optionsDesc, TargetDescription* target,
+                              ResultDescription* result);
 SC_SYMBOL_EXPORT void Disassemble(DisassembleDescription* source, ResultDescription* result);
 
 SC_SYMBOL_EXPORT ShaderConductorBlob* CreateShaderConductorBlob(const void* data, int size);

@@ -25,8 +25,8 @@
 
 #include "Native.h"
 #include <ShaderConductor/ShaderConductor.hpp>
-#include <iostream>
 #include <cstring>
+#include <iostream>
 
 using namespace ShaderConductor;
 
