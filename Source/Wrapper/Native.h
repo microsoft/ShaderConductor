@@ -98,11 +98,11 @@ struct DisassembleDescription
 #define SC_SYMBOL_IMPORT __declspec(dllimport)
 #endif
 
-SC_SYMBOL_EXPORT void Compile(SourceDescription* source, OptionsDescription* optionsDesc, TargetDescription* target,
-                              ResultDescription* result);
-SC_SYMBOL_EXPORT void Disassemble(DisassembleDescription* source, ResultDescription* result);
+extern "C" SC_SYMBOL_EXPORT void Compile(SourceDescription* source, OptionsDescription* optionsDesc, TargetDescription* target,
+                                         ResultDescription* result);
+extern "C" SC_SYMBOL_EXPORT void Disassemble(DisassembleDescription* source, ResultDescription* result);
 
-SC_SYMBOL_EXPORT ShaderConductorBlob* CreateShaderConductorBlob(const void* data, int size);
-SC_SYMBOL_EXPORT void DestroyShaderConductorBlob(ShaderConductorBlob* blob);
-SC_SYMBOL_EXPORT const void* GetShaderConductorBlobData(ShaderConductorBlob* blob);
-SC_SYMBOL_EXPORT int GetShaderConductorBlobSize(ShaderConductorBlob* blob);
+extern "C" SC_SYMBOL_EXPORT ShaderConductorBlob* CreateShaderConductorBlob(const void* data, int size);
+extern "C" SC_SYMBOL_EXPORT void DestroyShaderConductorBlob(ShaderConductorBlob* blob);
+extern "C" SC_SYMBOL_EXPORT const void* GetShaderConductorBlobData(ShaderConductorBlob* blob);
+extern "C" SC_SYMBOL_EXPORT int GetShaderConductorBlobSize(ShaderConductorBlob* blob);
