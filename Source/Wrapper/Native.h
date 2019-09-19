@@ -82,12 +82,26 @@ struct DisassembleDescription
     int binarySize;
 };
 
-#define DLLEXPORT extern "C" __declspec(dllexport)
+#if defined(__clang__)
+#define SC_SYMBOL_EXPORT __attribute__((__visibility__("default")))
+#define SC_SYMBOL_IMPORT
+#elif defined(__GNUC__)
+#if defined(_WIN32) || defined(__WIN32__) || defined(WIN32)
+#define SC_SYMBOL_EXPORT __attribute__((__dllexport__))
+#define SC_SYMBOL_IMPORT __attribute__((__dllimport__))
+#else
+#define SC_SYMBOL_EXPORT __attribute__((__visibility__("default")))
+#define SC_SYMBOL_IMPORT
+#endif
+#elif defined(_MSC_VER)
+#define SC_SYMBOL_EXPORT __declspec(dllexport)
+#define SC_SYMBOL_IMPORT __declspec(dllimport)
+#endif
 
-DLLEXPORT void Compile(SourceDescription* source, OptionsDescription* optionsDesc, TargetDescription* target, ResultDescription* result);
-DLLEXPORT void Disassemble(DisassembleDescription* source, ResultDescription* result);
+SC_SYMBOL_EXPORT void Compile(SourceDescription* source, OptionsDescription* optionsDesc, TargetDescription* target, ResultDescription* result);
+SC_SYMBOL_EXPORT void Disassemble(DisassembleDescription* source, ResultDescription* result);
 
-DLLEXPORT ShaderConductorBlob* CreateShaderConductorBlob(const void* data, int size);
-DLLEXPORT void DestroyShaderConductorBlob(ShaderConductorBlob* blob);
-DLLEXPORT const void* GetShaderConductorBlobData(ShaderConductorBlob* blob);
-DLLEXPORT int GetShaderConductorBlobSize(ShaderConductorBlob* blob);
+SC_SYMBOL_EXPORT ShaderConductorBlob* CreateShaderConductorBlob(const void* data, int size);
+SC_SYMBOL_EXPORT void DestroyShaderConductorBlob(ShaderConductorBlob* blob);
+SC_SYMBOL_EXPORT const void* GetShaderConductorBlobData(ShaderConductorBlob* blob);
+SC_SYMBOL_EXPORT int GetShaderConductorBlobSize(ShaderConductorBlob* blob);
