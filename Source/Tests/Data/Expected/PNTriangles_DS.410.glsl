@@ -8,7 +8,7 @@ out gl_PerVertex
 
 layout(std140) uniform type_cbPNTriangles
 {
-    layout(row_major) mat4 viewProj;
+    mat4 viewProj;
     vec4 lightDir;
 } cbPNTriangles;
 

@@ -1,6 +1,6 @@
 cbuffer type_cbVS : register(b0)
 {
-    column_major float4x4 cbVS_wvp : packoffset(c0);
+    row_major float4x4 cbVS_wvp : packoffset(c0);
 };
 
 uniform float4 gl_HalfPixel;

@@ -50,6 +50,10 @@ namespace CSharpConsole
             //optionsDesc.disableOptimizations = true;
             //optionsDesc.optimizationLevel = 3;
             //optionsDesc.shaderModel = new Wrapper.ShaderModel(6, 2);
+            //optionsDesc.shiftAllCBuffersBindings = 10;
+            //optionsDesc.shiftAllTexturesBindings = 20;
+            //optionsDesc.shiftAllSamplersBindings = 30;
+            //optionsDesc.shiftAllUABuffersBindings = 40;
 
             Wrapper.TargetDesc targetDesc = new Wrapper.TargetDesc()
             {

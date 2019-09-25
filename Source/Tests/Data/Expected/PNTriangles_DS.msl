@@ -42,7 +42,7 @@ struct main0_patchIn
     float _70 = _67 * 3.0;
     float _71 = _68 * 3.0;
     float _72 = _69 * 3.0;
-    out.gl_Position = float4(((((((((((in_var_POSITION[0] * _69) * gl_TessCoord.z) + ((in_var_POSITION[1] * _67) * gl_TessCoord.x)) + ((in_var_POSITION[2] * _68) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION3 * _72) * gl_TessCoord.x)) + ((patchIn.in_var_POSITION4 * gl_TessCoord.z) * _70)) + ((patchIn.in_var_POSITION8 * _72) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION5 * _70) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION7 * gl_TessCoord.z) * _71)) + ((patchIn.in_var_POSITION6 * gl_TessCoord.x) * _71)) + ((((patchIn.in_var_CENTER * 6.0) * gl_TessCoord.z) * gl_TessCoord.x) * gl_TessCoord.y), 1.0) * cbPNTriangles.viewProj;
+    out.gl_Position = cbPNTriangles.viewProj * float4(((((((((((in_var_POSITION[0] * _69) * gl_TessCoord.z) + ((in_var_POSITION[1] * _67) * gl_TessCoord.x)) + ((in_var_POSITION[2] * _68) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION3 * _72) * gl_TessCoord.x)) + ((patchIn.in_var_POSITION4 * gl_TessCoord.z) * _70)) + ((patchIn.in_var_POSITION8 * _72) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION5 * _70) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION7 * gl_TessCoord.z) * _71)) + ((patchIn.in_var_POSITION6 * gl_TessCoord.x) * _71)) + ((((patchIn.in_var_CENTER * 6.0) * gl_TessCoord.z) * gl_TessCoord.x) * gl_TessCoord.y), 1.0);
     out.out_var_TEXCOORD0 = ((in_var_TEXCOORD[0] * gl_TessCoord.z) + (in_var_TEXCOORD[1] * gl_TessCoord.x)) + (in_var_TEXCOORD[2] * gl_TessCoord.y);
     return out;
 }

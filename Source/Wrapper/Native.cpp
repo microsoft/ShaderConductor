@@ -46,6 +46,10 @@ void Compile(SourceDescription* source, OptionsDescription* optionsDesc, TargetD
     options.disableOptimizations = optionsDesc->disableOptimizations;
     options.optimizationLevel = optionsDesc->optimizationLevel;
     options.shaderModel = { static_cast<uint8_t>(optionsDesc->shaderModel.major), static_cast<uint8_t>(optionsDesc->shaderModel.minor) };
+    options.shiftAllTexturesBindings = optionsDesc->shiftAllTexturesBindings;
+    options.shiftAllSamplersBindings = optionsDesc->shiftAllSamplersBindings;
+    options.shiftAllCBuffersBindings = optionsDesc->shiftAllCBuffersBindings;
+    options.shiftAllUABuffersBindings = optionsDesc->shiftAllUABuffersBindings;
 
     Compiler::TargetDesc targetDesc;
     targetDesc.language = target->shadingLanguage;
