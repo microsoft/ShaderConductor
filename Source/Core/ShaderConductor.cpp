@@ -128,7 +128,22 @@ namespace
             const char* functionName = "DxcCreateInstance";
 
 #ifdef _WIN32
-            m_dxcompilerDll = ::LoadLibraryA(dllName);
+            HMODULE hm = NULL;
+            if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)"DllMain", &hm) != 0)
+            {
+				char path[MAX_PATH];
+                if (GetModuleFileName(hm, path, sizeof(path)) != 0)
+                {
+                    PathRemoveFileSpec(path);
+                    char finalPath[MAX_PATH];
+                    m_dxcompilerDll = ::LoadLibraryA(PathCombine(finalPath, path, dllName));
+                }
+            }
+
+            if (m_dxcompilerDll == nullptr)
+            {
+                m_dxcompilerDll = ::LoadLibraryA(dllName);
+            }
 #else
             m_dxcompilerDll = ::dlopen(dllName, RTLD_LAZY);
 #endif
