@@ -129,9 +129,10 @@ namespace
 
 #ifdef _WIN32
             HMODULE hm = NULL;
-            if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)"DllMain", &hm) != 0)
+            if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR) "DllMain",
+                                  &hm) != 0)
             {
-				char path[MAX_PATH];
+                char path[MAX_PATH];
                 if (GetModuleFileName(hm, path, sizeof(path)) != 0)
                 {
                     PathRemoveFileSpec(path);
@@ -736,7 +737,8 @@ namespace
             {
                 uint32_t binding = compiler->get_decoration(remap.image_id, spv::DecorationBinding); // or sampler_id.
                 compiler->set_decoration(remap.combined_id, spv::DecorationBinding, binding);
-                compiler->set_name(remap.combined_id,"SPIRV_Cross_Combined" + compiler->get_name(remap.image_id) + compiler->get_name(remap.sampler_id));
+                compiler->set_name(remap.combined_id,
+                                   "SPIRV_Cross_Combined" + compiler->get_name(remap.image_id) + compiler->get_name(remap.sampler_id));
             }
         }
 
