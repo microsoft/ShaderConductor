@@ -34,6 +34,12 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${SC_BUILD_DIR}/Lib)
 if((CMAKE_C_COMPILER_ID MATCHES GNU) OR (CMAKE_C_COMPILER_ID MATCHES Clang))
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1z")
 endif()
+if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    foreach(flagVar
+        CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+        set(${flagVar} "${${flagVar}} -fms-extensions -Wno-language-extension-token")
+    endforeach()
+endif()
 
 set(Python_ADDITIONAL_VERSIONS 3.5 3.6 3.7)
 

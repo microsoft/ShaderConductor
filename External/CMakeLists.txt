@@ -8,10 +8,10 @@ endif()
 
 set(cxxopts_REV "3f2d70530219e09fe7e563f86126b0d3b228a60d")
 set(googletest_REV "440527a61e1c91188195f7de212c63c77e8f0a45")
-set(SPIRV_Headers_REV "4b0985f29277a81f5ce88feb0502cc44d6d5e7c3")
-set(SPIRV_Tools_REV "e935dac9ef8a01fdb6d0a4b7898563e6f62d1081")
-set(DirectXShaderCompiler_REV "2dec1cd0df488988f27c5ce790d9025efe582908")
-set(SPIRV_Cross_REV "cb686a5dba9a7086a778fe21900383beed9ea5d3")
+set(SPIRV_Headers_REV "601d738723ac381741311c6c98c36d6170be14a2")
+set(SPIRV_Tools_REV "bbb29870b510f83f99994358179c9ea6838c3100")
+set(DirectXShaderCompiler_REV "513276e84640bce597d1bb887fc6b0906139c132")
+set(SPIRV_Cross_REV "5431e1da2dc11123750f39a5ba4e5a8c117a0773")
 
 function(UpdateExternalLib name url rev)
     set(need_checkout FALSE)
@@ -54,7 +54,6 @@ UpdateExternalLib("googletest" "https://github.com/google/googletest.git" ${goog
 UpdateExternalLib("SPIRV-Headers" "https://github.com/KhronosGroup/SPIRV-Headers.git" ${SPIRV_Headers_REV})
 UpdateExternalLib("SPIRV-Tools" "https://github.com/KhronosGroup/SPIRV-Tools.git" ${SPIRV_Tools_REV})
 UpdateExternalLib("DirectXShaderCompiler" "https://github.com/Microsoft/DirectXShaderCompiler.git" ${DirectXShaderCompiler_REV})
-ApplyPatch("DirectXShaderCompiler" "${CMAKE_CURRENT_SOURCE_DIR}/Patches/DirectXShaderCompiler/0001-Fix-the-compiling-problem-on-VS2019.2.patch")
 UpdateExternalLib("SPIRV-Cross" "https://github.com/KhronosGroup/SPIRV-Cross.git" ${SPIRV_Cross_REV})
 
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)

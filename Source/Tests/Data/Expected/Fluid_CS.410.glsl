@@ -38,18 +38,17 @@ layout(std430) readonly buffer type_StructuredBuffer_ParticleForces
 
 void main()
 {
-    vec2 _51 = particlesRO._m0[gl_GlobalInvocationID.x].position;
     vec2 _53 = particlesRO._m0[gl_GlobalInvocationID.x].velocity;
     vec2 _57;
     _57 = particlesForcesRO._m0[gl_GlobalInvocationID.x].acceleration;
     for (uint _60 = 0u; _60 < 4u; )
     {
-        _57 += (cbSimulationConstants.planes[_60].xy * (min(dot(vec3(_51, 1.0), cbSimulationConstants.planes[_60]), 0.0) * (-cbSimulationConstants.wallStiffness)));
+        _57 += (cbSimulationConstants.planes[_60].xy * (min(dot(vec3(particlesRO._m0[gl_GlobalInvocationID.x].position, 1.0), cbSimulationConstants.planes[_60]), 0.0) * (-cbSimulationConstants.wallStiffness)));
         _60++;
         continue;
     }
     vec2 _84 = _53 + ((_57 + cbSimulationConstants.gravity.xy) * cbSimulationConstants.timeStep);
-    particlesRW._m0[gl_GlobalInvocationID.x].position = _51 + (_84 * cbSimulationConstants.timeStep);
+    particlesRW._m0[gl_GlobalInvocationID.x].position = particlesRO._m0[gl_GlobalInvocationID.x].position + (_84 * cbSimulationConstants.timeStep);
     particlesRW._m0[gl_GlobalInvocationID.x].velocity = _84;
 }
 
