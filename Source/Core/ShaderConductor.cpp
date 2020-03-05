@@ -128,7 +128,23 @@ namespace
             const char* functionName = "DxcCreateInstance";
 
 #ifdef _WIN32
-            m_dxcompilerDll = ::LoadLibraryA(dllName);
+            HMODULE hm = NULL;
+            if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR) "DllMain",
+                                  &hm) != 0)
+            {
+                char path[MAX_PATH];
+                if (GetModuleFileName(hm, path, sizeof(path)) != 0)
+                {
+                    PathRemoveFileSpec(path);
+                    char finalPath[MAX_PATH];
+                    m_dxcompilerDll = ::LoadLibraryA(PathCombine(finalPath, path, dllName));
+                }
+            }
+
+            if (m_dxcompilerDll == nullptr)
+            {
+                m_dxcompilerDll = ::LoadLibraryA(dllName);
+            }
 #else
             m_dxcompilerDll = ::dlopen(dllName, RTLD_LAZY);
 #endif
@@ -719,6 +735,8 @@ namespace
 
             for (auto& remap : compiler->get_combined_image_samplers())
             {
+                uint32_t binding = compiler->get_decoration(remap.image_id, spv::DecorationBinding); // or sampler_id.
+                compiler->set_decoration(remap.combined_id, spv::DecorationBinding, binding);
                 compiler->set_name(remap.combined_id,
                                    "SPIRV_Cross_Combined" + compiler->get_name(remap.image_id) + compiler->get_name(remap.sampler_id));
             }
