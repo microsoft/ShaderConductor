@@ -1,7 +1,48 @@
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+#pragma clang diagnostic ignored "-Wmissing-braces"
+
 #include <metal_stdlib>
 #include <simd/simd.h>
 
 using namespace metal;
+
+template<typename T, size_t Num>
+struct spvUnsafeArray
+{
+    T elements[Num ? Num : 1];
+    
+    thread T& operator [] (size_t pos) thread
+    {
+        return elements[pos];
+    }
+    constexpr const thread T& operator [] (size_t pos) const thread
+    {
+        return elements[pos];
+    }
+    
+    device T& operator [] (size_t pos) device
+    {
+        return elements[pos];
+    }
+    constexpr const device T& operator [] (size_t pos) const device
+    {
+        return elements[pos];
+    }
+    
+    constexpr const constant T& operator [] (size_t pos) const constant
+    {
+        return elements[pos];
+    }
+    
+    threadgroup T& operator [] (size_t pos) threadgroup
+    {
+        return elements[pos];
+    }
+    constexpr const threadgroup T& operator [] (size_t pos) const threadgroup
+    {
+        return elements[pos];
+    }
+};
 
 struct type_cbPNTriangles
 {
@@ -36,14 +77,16 @@ struct main0_patchIn
 [[ patch(triangle, 0) ]] vertex main0_out main0(main0_patchIn patchIn [[stage_in]], constant type_cbPNTriangles& cbPNTriangles [[buffer(0)]], float3 gl_TessCoord [[position_in_patch]])
 {
     main0_out out = {};
+    spvUnsafeArray<float3, 3> _55 = spvUnsafeArray<float3, 3>({ patchIn.gl_in[0].in_var_POSITION, patchIn.gl_in[1].in_var_POSITION, patchIn.gl_in[2].in_var_POSITION });
+    spvUnsafeArray<float2, 3> _56 = spvUnsafeArray<float2, 3>({ patchIn.gl_in[0].in_var_TEXCOORD, patchIn.gl_in[1].in_var_TEXCOORD, patchIn.gl_in[2].in_var_TEXCOORD });
     float _67 = gl_TessCoord.x * gl_TessCoord.x;
     float _68 = gl_TessCoord.y * gl_TessCoord.y;
     float _69 = gl_TessCoord.z * gl_TessCoord.z;
     float _70 = _67 * 3.0;
     float _71 = _68 * 3.0;
     float _72 = _69 * 3.0;
-    out.gl_Position = cbPNTriangles.viewProj * float4(((((((((((in_var_POSITION[0] * _69) * gl_TessCoord.z) + ((in_var_POSITION[1] * _67) * gl_TessCoord.x)) + ((in_var_POSITION[2] * _68) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION3 * _72) * gl_TessCoord.x)) + ((patchIn.in_var_POSITION4 * gl_TessCoord.z) * _70)) + ((patchIn.in_var_POSITION8 * _72) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION5 * _70) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION7 * gl_TessCoord.z) * _71)) + ((patchIn.in_var_POSITION6 * gl_TessCoord.x) * _71)) + ((((patchIn.in_var_CENTER * 6.0) * gl_TessCoord.z) * gl_TessCoord.x) * gl_TessCoord.y), 1.0);
-    out.out_var_TEXCOORD0 = ((in_var_TEXCOORD[0] * gl_TessCoord.z) + (in_var_TEXCOORD[1] * gl_TessCoord.x)) + (in_var_TEXCOORD[2] * gl_TessCoord.y);
+    out.gl_Position = cbPNTriangles.viewProj * float4(((((((((((_55[0] * _69) * gl_TessCoord.z) + ((_55[1] * _67) * gl_TessCoord.x)) + ((_55[2] * _68) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION3 * _72) * gl_TessCoord.x)) + ((patchIn.in_var_POSITION4 * gl_TessCoord.z) * _70)) + ((patchIn.in_var_POSITION8 * _72) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION5 * _70) * gl_TessCoord.y)) + ((patchIn.in_var_POSITION7 * gl_TessCoord.z) * _71)) + ((patchIn.in_var_POSITION6 * gl_TessCoord.x) * _71)) + ((((patchIn.in_var_CENTER * 6.0) * gl_TessCoord.z) * gl_TessCoord.x) * gl_TessCoord.y), 1.0);
+    out.out_var_TEXCOORD0 = ((_56[0] * gl_TessCoord.z) + (_56[1] * gl_TessCoord.x)) + (_56[2] * gl_TessCoord.y);
     return out;
 }
 

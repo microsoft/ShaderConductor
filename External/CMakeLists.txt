@@ -8,16 +8,16 @@ endif()
 
 set(cxxopts_REV "3f2d70530219e09fe7e563f86126b0d3b228a60d")
 set(googletest_REV "440527a61e1c91188195f7de212c63c77e8f0a45")
-set(SPIRV_Headers_REV "601d738723ac381741311c6c98c36d6170be14a2")
-set(SPIRV_Tools_REV "bbb29870b510f83f99994358179c9ea6838c3100")
-set(DirectXShaderCompiler_REV "513276e84640bce597d1bb887fc6b0906139c132")
-set(SPIRV_Cross_REV "5431e1da2dc11123750f39a5ba4e5a8c117a0773")
+set(SPIRV_Headers_REV "5dbc1c32182e17b8ab8e8158a802ecabaf35aad3")
+set(SPIRV_Tools_REV "70f888131ede3d267cb19a413c9fef3fc51ccc22")
+set(DirectXShaderCompiler_REV "b053bfbaae0d4d14e7d715ebe5592ade82388637")
+set(SPIRV_Cross_REV "d19f30a90eff98fb4c33a2f24b05699c7de87ecb")
 
 function(UpdateExternalLib name url rev)
     set(need_checkout FALSE)
     set(external_folder "${SC_ROOT_DIR}/External")
     set(external_lib_folder "${external_folder}/${name}")
-    if(EXISTS ${external_lib_folder})
+    if(EXISTS "${external_lib_folder}/.git")
         message(STATUS "Updating ${name} to revision ${rev}...")
         execute_process(COMMAND "${git_executable}" "fetch" "origin" WORKING_DIRECTORY "${external_lib_folder}")
         execute_process(COMMAND "${git_executable}" "rev-parse" "HEAD" WORKING_DIRECTORY "${external_lib_folder}" OUTPUT_VARIABLE head_rev)
@@ -36,6 +36,8 @@ function(UpdateExternalLib name url rev)
         message(STATUS "Checking out to revision ${rev}...")
         execute_process(COMMAND "${git_executable}" "checkout" "-q" ${rev} WORKING_DIRECTORY "${external_lib_folder}")
     endif()
+
+    set(${ARGV3} ${need_checkout} PARENT_SCOPE)
 endfunction()
 
 function(ApplyPatch name patch)
@@ -53,7 +55,12 @@ UpdateExternalLib("cxxopts" "https://github.com/jarro2783/cxxopts.git" ${cxxopts
 UpdateExternalLib("googletest" "https://github.com/google/googletest.git" ${googletest_REV})
 UpdateExternalLib("SPIRV-Headers" "https://github.com/KhronosGroup/SPIRV-Headers.git" ${SPIRV_Headers_REV})
 UpdateExternalLib("SPIRV-Tools" "https://github.com/KhronosGroup/SPIRV-Tools.git" ${SPIRV_Tools_REV})
-UpdateExternalLib("DirectXShaderCompiler" "https://github.com/Microsoft/DirectXShaderCompiler.git" ${DirectXShaderCompiler_REV})
+UpdateExternalLib("DirectXShaderCompiler" "https://github.com/Microsoft/DirectXShaderCompiler.git" ${DirectXShaderCompiler_REV} need_patch)
+if(need_patch)
+    foreach(patch "0001-Fix-a-couple-warnings-in-code")
+        ApplyPatch("DirectXShaderCompiler" "${CMAKE_CURRENT_SOURCE_DIR}/Patches/${patch}.patch")
+    endforeach()
+endif()
 UpdateExternalLib("SPIRV-Cross" "https://github.com/KhronosGroup/SPIRV-Cross.git" ${SPIRV_Cross_REV})
 
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
@@ -79,7 +86,8 @@ foreach(target
     "spirv-tools-pkg-config" "spirv-tools-shared-pkg-config"
     "spirv-tools-build-version" "spirv-tools-header-DebugInfo"
     "SPIRV-Tools-link" "SPIRV-Tools-shared"
-    "spirv-tools-vimsyntax" "spv-tools-debuginfo" "spv-tools-spv-amd-gs" "spv-tools-spv-amd-sb" "spv-tools-spv-amd-sevp" "spv-tools-spv-amd-stm")
+    "spirv-tools-header-OpenCLDebugInfo100" "spirv-tools-vimsyntax" "spv-tools-cldi100" "spv-tools-debuginfo" "spv-tools-spv-amd-gs"
+    "spv-tools-spv-amd-sb" "spv-tools-spv-amd-sevp" "spv-tools-spv-amd-stm")
     get_target_property(vsFolder ${target} FOLDER)
     if(NOT vsFolder)
         set(vsFolder "")
@@ -93,6 +101,7 @@ set(CLANG_ENABLE_STATIC_ANALYZER OFF CACHE BOOL "" FORCE)
 set(CLANG_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
 set(HLSL_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
+set(HLSL_BUILD_DXILCONV OFF CACHE BOOL "" FORCE)
 set(LLVM_TARGETS_TO_BUILD "None" CACHE STRING "" FORCE)
 set(LLVM_INCLUDE_DOCS OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -134,10 +143,10 @@ foreach(target
     "ClangDiagnosticSema" "ClangDiagnosticSerialization" "ClangStmtNodes"
     "LLVMAnalysis" "LLVMAsmParser" "LLVMBitReader" "LLVMBitWriter" "LLVMCore" "LLVMDxcSupport" "LLVMDXIL" "LLVMDxilContainer"
     "LLVMDxilPIXPasses" "LLVMDxilRootSignature" "LLVMDxrFallback" "LLVMHLSL" "LLVMInstCombine" "LLVMipa" "LLVMipo" "LLVMIRReader"
-    "LLVMLinker" "LLVMLTO" "LLVMMSSupport" "LLVMOption" "LLVMProfileData" "LLVMScalarOpts" "LLVMSupport" "LLVMTableGen" "LLVMTarget"
-    "LLVMTransformUtils" "LLVMVectorize"
+    "LLVMLinker" "LLVMLTO" "LLVMMSSupport" "LLVMOption" "LLVMPasses" "LLVMPassPrinters" "LLVMProfileData" "LLVMScalarOpts" "LLVMSupport"
+    "LLVMTableGen" "LLVMTarget" "LLVMTransformUtils" "LLVMVectorize"
     "ClangDriverOptions" "DxcEtw" "intrinsics_gen" "TablegenHLSLOptions"
-    "clang-tblgen" "GIT_COMMIT_INFO_ALWAYS_REBUILD" "llvm-tblgen")
+    "clang-tblgen" "GIT_COMMIT_INFO_ALWAYS_REBUILD" "llvm-tblgen" "hlsl_dxcversion_autogen" "hlsl_version_autogen")
     get_target_property(vsFolder ${target} FOLDER)	
     if(NOT vsFolder)
         set(vsFolder "")

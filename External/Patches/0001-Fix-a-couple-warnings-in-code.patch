@@ -1,0 +1,39 @@
+From ff8411aad557d35436272cc7175d211009982151 Mon Sep 17 00:00:00 2001
+From: Minmin Gong <mgong@microsoft.com>
+Date: Wed, 4 Mar 2020 19:04:38 -0800
+Subject: [PATCH] Fix a couple warnings in code
+
+1. A warning about unused "group" variable
+2. A CMake warning about unmatched if and endif
+---
+ lib/HLSL/HLOperationLower.cpp | 4 +---
+ projects/CMakeLists.txt       | 2 +-
+ 2 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/lib/HLSL/HLOperationLower.cpp b/lib/HLSL/HLOperationLower.cpp
+index 33151e1e..eb080fd9 100644
+--- a/lib/HLSL/HLOperationLower.cpp
++++ b/lib/HLSL/HLOperationLower.cpp
+@@ -108,9 +108,7 @@ public:
+ 
+   void MarkHasCounter(Value *handle, Type *i8Ty) {
+     CallInst *CIHandle = cast<CallInst>(handle);
+-    hlsl::HLOpcodeGroup group =
+-        hlsl::GetHLOpcodeGroup(CIHandle->getCalledFunction());
+-    DXASSERT(group == HLOpcodeGroup::HLAnnotateHandle, "else invalid handle");
++    DXASSERT(hlsl::GetHLOpcodeGroup(CIHandle->getCalledFunction()) == HLOpcodeGroup::HLAnnotateHandle, "else invalid handle");
+     // Mark has counter for the input handle.
+     Value *counterHandle =
+         CIHandle->getArgOperand(HLOperandIndex::kAnnotateHandleHandleOpIdx);
+diff --git a/projects/CMakeLists.txt b/projects/CMakeLists.txt
+index 2e424938..13e4e733 100644
+--- a/projects/CMakeLists.txt
++++ b/projects/CMakeLists.txt
+@@ -1,3 +1,3 @@
+ if(WIN32 AND HLSL_BUILD_DXILCONV)
+   add_subdirectory(dxilconv)
+-endif (WIN32)
++endif (WIN32 AND HLSL_BUILD_DXILCONV)
+-- 
+2.17.1.windows.2
+
