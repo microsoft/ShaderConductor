@@ -39,24 +39,23 @@ source_group("Source Files" FILES ${SOURCE_FILES})
 source_group("Data Files\\Input" FILES ${DATA_FILES})
 source_group("Data Files\\Input\\Inc" FILES ${DATA_INC_FILES})
 
-link_directories(
-    ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-)
-
 add_executable(${EXE_NAME} ${SOURCE_FILES} ${DATA_FILES} ${DATA_INC_FILES})
 
-target_include_directories(${EXE_NAME} PRIVATE
-    ${SC_ROOT_DIR}/Include
-    ${SC_ROOT_DIR}/External/googletest/googletest/include
+target_include_directories(${EXE_NAME}
+    PRIVATE
+        $<TARGET_PROPERTY:ShaderConductor,INTERFACE_INCLUDE_DIRECTORIES>
+        $<TARGET_PROPERTY:gtest,INTERFACE_INCLUDE_DIRECTORIES>
 )
-target_compile_definitions(${EXE_NAME} PRIVATE
-    -DTEST_DATA_DIR="${SC_ROOT_DIR}/Source/Tests/Data/")
+target_compile_definitions(${EXE_NAME}
+    PRIVATE
+        -DTEST_DATA_DIR="${SC_ROOT_DIR}/Source/Tests/Data/"
+)
 target_link_libraries(${EXE_NAME}
-    ShaderConductor
-    debug gtestd optimized gtest
+    PRIVATE
+        ShaderConductor
+        gtest
 )
 
-add_dependencies(${EXE_NAME} ShaderConductor)
-add_dependencies(${EXE_NAME} gtest)
+add_dependencies(${EXE_NAME} ShaderConductor gtest)
 
 set_target_properties(${EXE_NAME} PROPERTIES FOLDER "Tests")
