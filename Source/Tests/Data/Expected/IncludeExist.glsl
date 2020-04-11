@@ -4,10 +4,10 @@
 uniform sampler2D SPIRV_Cross_CombinedcolorTexpointSampler;
 uniform sampler2D SPIRV_Cross_CombinedcolorTexlinearSampler;
 
-varying vec2 in_var_TEXCOORD0;
+varying vec2 varying_TEXCOORD0;
 
 void main()
 {
-    gl_FragData[0] = texture2D(SPIRV_Cross_CombinedcolorTexpointSampler, in_var_TEXCOORD0) + texture2D(SPIRV_Cross_CombinedcolorTexlinearSampler, in_var_TEXCOORD0);
+    gl_FragData[0] = texture2D(SPIRV_Cross_CombinedcolorTexpointSampler, varying_TEXCOORD0) + texture2D(SPIRV_Cross_CombinedcolorTexlinearSampler, varying_TEXCOORD0);
 }
 

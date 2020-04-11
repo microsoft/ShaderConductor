@@ -585,6 +585,36 @@ namespace
             compiler = std::make_unique<spirv_cross::CompilerGLSL>(spirvIr, spirvSize);
             combinedImageSamplers = true;
             buildDummySampler = true;
+
+            // Legacy GLSL fixups
+            if (intVersion <= 300)
+            {
+                auto vars = compiler->get_active_interface_variables();
+                for (auto& var : vars)
+                {
+                    auto varClass = compiler->get_storage_class(var);
+
+                    // Make VS out and PS in variable names match
+                    if ((source.stage == ShaderStage::VertexShader) && (varClass == spv::StorageClass::StorageClassOutput))
+                    {
+                        auto name = compiler->get_name(var);
+                        if (name.find("out_var") == 0)
+                        {
+                            name.replace(0, 7, "varying");
+                            compiler->set_name(var, name);
+                        }
+                    }
+                    else if ((source.stage == ShaderStage::PixelShader) && (varClass == spv::StorageClass::StorageClassInput))
+                    {
+                        auto name = compiler->get_name(var);
+                        if (name.find("in_var") == 0)
+                        {
+                            name.replace(0, 6, "varying");
+                            compiler->set_name(var, name);
+                        }
+                    }
+                }
+            }
             break;
 
         case ShadingLanguage::Msl_macOS:

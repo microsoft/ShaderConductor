@@ -72,9 +72,9 @@ namespace
                 std::ofstream actualFile(TEST_DATA_DIR "Result/" + compareName, mode);
                 actualFile.write(reinterpret_cast<const char*>(actual.data()), actual.size());
             }
-
-            EXPECT_TRUE(false);
         }
+
+        EXPECT_EQ(std::string(expected.begin(), expected.end()), std::string(actual.begin(), actual.end()));
     }
 
     void HlslToAnyTest(const std::string& name, const Compiler::SourceDesc& source, const Compiler::Options& options,
