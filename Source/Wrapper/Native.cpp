@@ -51,7 +51,7 @@ void Compile(SourceDescription* source, OptionsDescription* optionsDesc, TargetD
     options.shiftAllCBuffersBindings = optionsDesc->shiftAllCBuffersBindings;
     options.shiftAllUABuffersBindings = optionsDesc->shiftAllUABuffersBindings;
 
-    Compiler::TargetDesc targetDesc;
+    Compiler::TargetDesc targetDesc{};
     targetDesc.language = target->shadingLanguage;
     targetDesc.version = target->version;
 

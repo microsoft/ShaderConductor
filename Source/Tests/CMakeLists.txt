@@ -14,6 +14,9 @@ set(DATA_INC_FILES
 )
 
 set(DATA_FILES
+    Data/Input/CalcLight.hlsl
+    Data/Input/CalcLightDiffuse.hlsl
+    Data/Input/CalcLightDiffuseSpecular.hlsl
     Data/Input/Common.hlsli
     Data/Input/Constant_PS.hlsl
     Data/Input/Constant_VS.hlsl

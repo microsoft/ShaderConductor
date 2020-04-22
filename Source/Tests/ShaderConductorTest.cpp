@@ -116,6 +116,21 @@ namespace
         }
     }
 
+    Compiler::ModuleDesc CompileToModule(const char* moduleName, const std::string& inputFileName, const Compiler::TargetDesc& target)
+    {
+        std::vector<uint8_t> input = LoadFile(inputFileName, true);
+        const std::string source = std::string(reinterpret_cast<char*>(input.data()), input.size());
+
+        const auto result = Compiler::Compile({ source.c_str(), inputFileName.c_str(), "", ShaderStage::PixelShader }, {}, target);
+
+        EXPECT_FALSE(result.hasError);
+        EXPECT_FALSE(result.isText);
+
+        DestroyBlob(result.errorWarningMsg);
+
+        return { moduleName, result.target };
+    }
+
     class TestBase : public testing::Test
     {
     public:
@@ -589,7 +604,7 @@ namespace
         option.enable16bitTypes = true;
 
         const auto result = Compiler::Compile({ source.c_str(), fileName.c_str(), "HalfOutParamPS", ShaderStage::PixelShader }, option,
-            { ShadingLanguage::Glsl, "30" });
+                                              { ShadingLanguage::Glsl, "30" });
 
         EXPECT_FALSE(result.hasError);
         EXPECT_TRUE(result.isText);
@@ -599,6 +614,63 @@ namespace
 
         DestroyBlob(result.errorWarningMsg);
         DestroyBlob(result.target);
+    }
+
+    TEST(LinkTest, LinkDxil)
+    {
+        if (!Compiler::LinkSupport())
+        {
+            GTEST_SKIP_("Link is not supported on this platform");
+        }
+
+        const Compiler::TargetDesc target = { ShadingLanguage::Dxil, "", true };
+        const Compiler::ModuleDesc dxilModules[] = {
+            CompileToModule("CalcLight", TEST_DATA_DIR "Input/CalcLight.hlsl", target),
+            CompileToModule("CalcLightDiffuse", TEST_DATA_DIR "Input/CalcLightDiffuse.hlsl", target),
+            CompileToModule("CalcLightDiffuseSpecular", TEST_DATA_DIR "Input/CalcLightDiffuseSpecular.hlsl", target),
+        };
+
+        const Compiler::ModuleDesc* testModules[][2] = {
+            { &dxilModules[0], &dxilModules[1] },
+            { &dxilModules[0], &dxilModules[2] },
+        };
+
+#ifdef NDEBUG
+        const std::string expectedNames[] = { "CalcLight+Diffuse.Release.dxilasm", "CalcLight+DiffuseSpecular.Release.dxilasm" };
+#else
+        const std::string expectedNames[] = { "CalcLight+Diffuse.Debug.dxilasm", "CalcLight+DiffuseSpecular.Debug.dxilasm" };
+#endif
+
+        for (size_t i = 0; i < 2; ++i)
+        {
+            const auto linkedResult =
+                Compiler::Link({ "main", ShaderStage::PixelShader, testModules[i], sizeof(testModules[i]) / sizeof(testModules[i][0]) }, {},
+                               { ShadingLanguage::Dxil, "" });
+
+            EXPECT_FALSE(linkedResult.hasError);
+            EXPECT_FALSE(linkedResult.isText);
+
+            Compiler::DisassembleDesc disasmDesc;
+            disasmDesc.binary = reinterpret_cast<const uint8_t*>(linkedResult.target->Data());
+            disasmDesc.binarySize = linkedResult.target->Size();
+            disasmDesc.language = ShadingLanguage::Dxil;
+            const auto disasmResult = Compiler::Disassemble(disasmDesc);
+
+            const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(disasmResult.target->Data());
+            CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + disasmResult.target->Size()), disasmResult.isText,
+                                expectedNames[i]);
+
+            DestroyBlob(linkedResult.errorWarningMsg);
+            DestroyBlob(linkedResult.target);
+
+            DestroyBlob(disasmResult.errorWarningMsg);
+            DestroyBlob(disasmResult.target);
+        }
+
+        for (auto& mod : dxilModules)
+        {
+            DestroyBlob(mod.target);
+        }
     }
 } // namespace
 

@@ -149,6 +149,7 @@ namespace CSharpConsole
         {
             public ShadingLanguage language;
             public string version;
+            public bool asModule;
         }
 
         [StructLayout(LayoutKind.Sequential)]

@@ -164,6 +164,7 @@ namespace ShaderConductor
         {
             ShadingLanguage language;
             const char* version;
+            bool asModule;
         };
 
         struct ResultDesc
@@ -178,8 +179,23 @@ namespace ShaderConductor
         struct DisassembleDesc
         {
             ShadingLanguage language;
-            uint8_t* binary;
+            const uint8_t* binary;
             uint32_t binarySize;
+        };
+
+        struct ModuleDesc
+        {
+            const char* name;
+            Blob* target;
+        };
+
+        struct LinkDesc
+        {
+            const char* entryPoint;
+            ShaderStage stage;
+
+            const ModuleDesc** modules;
+            uint32_t numModules;
         };
 
     public:
@@ -187,6 +203,10 @@ namespace ShaderConductor
         static void Compile(const SourceDesc& source, const Options& options, const TargetDesc* targets, uint32_t numTargets,
                             ResultDesc* results);
         static ResultDesc Disassemble(const DisassembleDesc& source);
+
+        // Currently only Dxil on Windows supports linking
+        static bool LinkSupport();
+        static ResultDesc Link(const LinkDesc& modules, const Options& options, const TargetDesc& target);
     };
 } // namespace ShaderConductor
 

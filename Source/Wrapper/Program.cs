@@ -59,6 +59,7 @@ namespace CSharpConsole
             {
                 language = Wrapper.ShadingLanguage.Glsl,
                 version = "460",
+                asModule = false,
             };
 
             Wrapper.Compile(ref sourceDesc, ref optionsDesc, ref targetDesc, out Wrapper.ResultDesc result);
