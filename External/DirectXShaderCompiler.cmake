@@ -1,14 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
-set(DirectXShaderCompiler_REV "b053bfbaae0d4d14e7d715ebe5592ade82388637")
+set(DirectXShaderCompiler_REV "002ed9737e389cebbefd1e8376bff6ad8a642340")
 
-UpdateExternalLib("DirectXShaderCompiler" "https://github.com/Microsoft/DirectXShaderCompiler.git" ${DirectXShaderCompiler_REV} need_patch)
-if(need_patch)
-    foreach(patch "0001-Fix-a-couple-warnings-in-code")
-        ApplyPatch("DirectXShaderCompiler" "${CMAKE_CURRENT_SOURCE_DIR}/Patches/${patch}.patch")
-    endforeach()
-endif()
+UpdateExternalLib("DirectXShaderCompiler" "https://github.com/Microsoft/DirectXShaderCompiler.git" ${DirectXShaderCompiler_REV})
 
 set(ENABLE_SPIRV_CODEGEN ON CACHE BOOL "" FORCE)
 set(CLANG_ENABLE_ARCMT OFF CACHE BOOL "" FORCE)
@@ -17,6 +12,7 @@ set(CLANG_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
 set(HLSL_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
 set(HLSL_BUILD_DXILCONV OFF CACHE BOOL "" FORCE)
+set(HLSL_SUPPORT_QUERY_GIT_COMMIT_INFO OFF CACHE BOOL "" FORCE)
 set(LLVM_TARGETS_TO_BUILD "None" CACHE STRING "" FORCE)
 set(LLVM_INCLUDE_DOCS OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -61,7 +57,7 @@ foreach(target
     "LLVMLinker" "LLVMLTO" "LLVMMSSupport" "LLVMOption" "LLVMPasses" "LLVMPassPrinters" "LLVMProfileData" "LLVMScalarOpts" "LLVMSupport"
     "LLVMTableGen" "LLVMTarget" "LLVMTransformUtils" "LLVMVectorize"
     "ClangDriverOptions" "DxcEtw" "intrinsics_gen" "TablegenHLSLOptions"
-    "clang-tblgen" "GIT_COMMIT_INFO_ALWAYS_REBUILD" "llvm-tblgen" "hlsl_dxcversion_autogen" "hlsl_version_autogen")
+    "clang-tblgen" "llvm-tblgen" "hlsl_dxcversion_autogen" "hlsl_version_autogen")
     get_target_property(vsFolder ${target} FOLDER)	
     if(NOT vsFolder)
         set(vsFolder "")
