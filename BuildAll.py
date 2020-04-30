@@ -152,7 +152,7 @@ if __name__ == "__main__":
 	multiConfig = (buildSys.find("vs") == 0)
 
 	buildDir = "Build/%s-%s-%s-%s" % (buildSys, hostPlatform, compiler, arch)
-	if not multiConfig:
+	if (not multiConfig) or (configuration == "clangformat"):
 		buildDir += "-%s" % configuration;
 	if not os.path.exists(buildDir):
 		os.mkdir(buildDir)
@@ -197,7 +197,11 @@ if __name__ == "__main__":
 		if hostPlatform == "win":
 			batCmd.AddCommand("set CC=cl.exe")
 			batCmd.AddCommand("set CXX=cl.exe")
-		batCmd.AddCommand("cmake -G Ninja -DCMAKE_BUILD_TYPE=\"%s\" -DSC_ARCH_NAME=\"%s\" ../../" % (configuration, arch))
+		if (configuration == "clangformat"):
+			options = "-DSC_CLANGFORMAT=\"ON\""
+		else:
+			options = "-DCMAKE_BUILD_TYPE=\"%s\" -DSC_ARCH_NAME=\"%s\"" % (configuration, arch)
+		batCmd.AddCommand("cmake -G Ninja %s ../../" % options)
 		batCmd.AddCommand("ninja -j%d" % parallel)
 	else:
 		if buildSys == "vs2019":
@@ -206,8 +210,14 @@ if __name__ == "__main__":
 			generator = "\"Visual Studio 15\""
 		elif buildSys == "vs2015":
 			generator = "\"Visual Studio 14\""
-		batCmd.AddCommand("cmake -G %s -T %shost=x64 -A %s ../../" % (generator, vcToolset, vcArch))
-		batCmd.AddCommand("MSBuild ALL_BUILD.vcxproj /nologo /m:%d /v:m /p:Configuration=%s,Platform=%s" % (parallel, configuration, vcArch))
+		if (configuration == "clangformat"):
+			cmake_options = "-DSC_CLANGFORMAT=\"ON\""
+			msbuild_options = ""
+		else:
+			cmake_options = "-T %shost=x64 -A %s" % (vcToolset, vcArch)
+			msbuild_options = "/m:%d /v:m /p:Configuration=%s,Platform=%s" % (parallel, configuration, vcArch)
+		batCmd.AddCommand("cmake -G %s %s ../../" % (generator, cmake_options))
+		batCmd.AddCommand("MSBuild ALL_BUILD.vcxproj /nologo %s" % msbuild_options)
 	if batCmd.Execute() != 0:
 		LogError("Build failed.\n")
 

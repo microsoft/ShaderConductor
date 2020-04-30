@@ -6,218 +6,247 @@ resources:
 - repo: self
   fetchDepth: 5
 
-jobs:
-- job: Windows_vc140_x64
-  pool:
-    vmImage: VS2017-Win2016
+stages:
+- stage: ClangFormat
+  jobs:
+  - job: ClangFormat
+    pool:
+      vmImage: Ubuntu-18.04
 
-  variables:
-    compiler: vc140
-    combination: 'win-$(compiler)-$(platform)-$(configuration)'
-    buildFolder: 'Build/ninja-$(combination)'
-    installCommand: 'choco install ninja python3'
-    testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
-    artifactBinaries: |
-      Bin/ShaderConductor.dll
-      Bin/ShaderConductorCmd.exe
-      Bin/dxcompiler.dll
-      Lib/ShaderConductor.lib
+    variables:
+      CC: gcc
+      CXX: g++
 
-  steps:
-  - template: CI/AzurePipelines/ContinuousBuild.yml
+    steps:
+    - bash: |
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+        sudo apt-get update
+        sudo apt-get install clang-format-9 ninja-build python3
+      displayName: 'Install'
+    - task: PythonScript@0
+      displayName: 'Build'
+      inputs:
+        scriptPath: BuildAll.py
+        arguments: 'ninja gcc linux clangformat'
+    - script: |
+        git diff --exit-code $(Build.SourceVersion)
+      failOnStderr: true
+      displayName: 'Clang-Format'
 
-- job: Windows_vc141_x86
-  pool:
-    vmImage: VS2017-Win2016
-
-  variables:
-    compiler: vc141
-    platform: x86
-    combination: 'win-$(compiler)-$(platform)-$(configuration)'
-    buildFolder: 'Build/ninja-$(combination)'
-    installCommand: 'choco install ninja python3'
-    testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
-    artifactBinaries: |
-      Bin/ShaderConductor.dll
-      Bin/ShaderConductorCmd.exe
-      Bin/dxcompiler.dll
-      Lib/ShaderConductor.lib
-
-  steps:
-  - template: CI/AzurePipelines/ContinuousBuild.yml
-
-- job: Windows_vc141_x64
-  pool:
-    vmImage: VS2017-Win2016
-
-  variables:
-    compiler: vc141
-    combination: 'win-$(compiler)-$(platform)-$(configuration)'
-    buildFolder: 'Build/ninja-$(combination)'
-    installCommand: 'choco install ninja python3'
-    testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
-    artifactBinaries: |
-      Bin/ShaderConductor.dll
-      Bin/ShaderConductorCmd.exe
-      Bin/dxcompiler.dll
-      Lib/ShaderConductor.lib
-
-  steps:
-  - template: CI/AzurePipelines/ContinuousBuild.yml
-
-- job: Windows_vc142_x86
-  pool:
-    vmImage: windows-2019
-
-  variables:
-    compiler: vc142
-    platform: x86
-    combination: 'win-$(compiler)-$(platform)-$(configuration)'
-    buildFolder: 'Build/ninja-$(combination)'
-    installCommand: 'choco install ninja'
-    testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
-    artifactBinaries: |
-      Bin/ShaderConductor.dll
-      Bin/ShaderConductorCmd.exe
-      Bin/dxcompiler.dll
-      Lib/ShaderConductor.lib
-
-  steps:
-  - template: CI/AzurePipelines/ContinuousBuild.yml
-
-- job: Windows_vc142_x64
-  pool:
-    vmImage: windows-2019
-
-  variables:
-    compiler: vc142
-    combination: 'win-$(compiler)-$(platform)-$(configuration)'
-    buildFolder: 'Build/ninja-$(combination)'
-    installCommand: 'choco install ninja'
-    testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
-    artifactBinaries: |
-      Bin/ShaderConductor.dll
-      Bin/ShaderConductorCmd.exe
-      Bin/dxcompiler.dll
-      Lib/ShaderConductor.lib
-
-  steps:
-  - template: CI/AzurePipelines/ContinuousBuild.yml
-
-- job: Linux_gcc7
-  pool:
-    vmImage: Ubuntu-16.04
-
-  variables:
-    compiler: gcc7
-    combination: 'linux-$(compiler)-$(platform)-$(configuration)'
-    buildFolder: 'Build/ninja-$(combination)'
-    installCommand: |
-      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-      sudo apt-get update
-      sudo apt-get install g++-7 ninja-build python3
-    testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
-    artifactBinaries: |
-      Bin/ShaderConductorCmd
-      Lib/libdxcompiler.so
-      Lib/libShaderConductor.so
-    CC: gcc-7
-    CXX: g++-7
-
-  steps:
-  - template: CI/AzurePipelines/ContinuousBuild.yml
-
-- job: Linux_gcc8
-  pool:
-    vmImage: Ubuntu-16.04
-
-  variables:
-    compiler: gcc8
-    combination: 'linux-$(compiler)-$(platform)-$(configuration)'
-    buildFolder: 'Build/ninja-$(combination)'
-    installCommand: |
-      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-      sudo apt-get update
-      sudo apt-get install g++-8 ninja-build python3
-    testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
-    artifactBinaries: |
-      Bin/ShaderConductorCmd
-      Lib/libdxcompiler.so
-      Lib/libShaderConductor.so
-    CC: gcc-8
-    CXX: g++-8
-
-  steps:
-  - template: CI/AzurePipelines/ContinuousBuild.yml
-
-- job: Linux_clang7
-  pool:
-    vmImage: Ubuntu-16.04
-
-  variables:
-    compiler: clang7
-    combination: 'linux-$(compiler)-$(platform)-$(configuration)'
-    buildFolder: 'Build/ninja-$(combination)'
-    installCommand: |
-      wget -O - http://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-      sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main"
-      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-      sudo apt-get update
-      sudo apt-get install clang-7 libc++-7-dev libc++abi-7-dev lld-7 ninja-build python3
-    testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
-    artifactBinaries: |
-      Bin/ShaderConductorCmd
-      Lib/libdxcompiler.so
-      Lib/libShaderConductor.so
-    CC: clang-7
-    CXX: clang++-7
-
-  steps:
-  - template: CI/AzurePipelines/ContinuousBuild.yml
-
-- job: Linux_clang8
-  pool:
-    vmImage: Ubuntu-16.04
-
-  variables:
-    compiler: clang8
-    combination: 'linux-$(compiler)-$(platform)-$(configuration)'
-    buildFolder: 'Build/ninja-$(combination)'
-    installCommand: |
-      wget -O - http://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-      sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main"
-      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-      sudo apt-get update
-      sudo apt-get install clang-8 libc++-8-dev libc++abi-8-dev lld-8 ninja-build python3
-    testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
-    artifactBinaries: |
-      Bin/ShaderConductorCmd
-      Lib/libdxcompiler.so
-      Lib/libShaderConductor.so
-    CC: clang-8
-    CXX: clang++-8
-
-  steps:
-  - template: CI/AzurePipelines/ContinuousBuild.yml
-
-- job: macOS_10_clang
-  pool:
-    vmImage: macOS 10.14
-
-  variables:
-    compiler: clang9
-    combination: 'osx-$(compiler)-$(platform)-$(configuration)'
-    buildFolder: 'Build/ninja-$(combination)'
-    installCommand: |
-      brew update
-      brew install ninja
-    testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
-    artifactBinaries: |
-      Bin/ShaderConductorCmd
-      Lib/libdxcompiler.dylib
-      Lib/libShaderConductor.dylib
-    CC: clang
-    CXX: clang++
-
-  steps:
-  - template: CI/AzurePipelines/ContinuousBuild.yml
+- stage: Build
+  condition: succeeded('ClangFormat')
+  jobs:
+  - job: Windows_vc140_x64
+    pool:
+      vmImage: VS2017-Win2016
+  
+    variables:
+      compiler: vc140
+      combination: 'win-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: 'choco install ninja python3'
+      testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
+      artifactBinaries: |
+        Bin/ShaderConductor.dll
+        Bin/ShaderConductorCmd.exe
+        Bin/dxcompiler.dll
+        Lib/ShaderConductor.lib
+  
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
+  
+  - job: Windows_vc141_x86
+    pool:
+      vmImage: VS2017-Win2016
+  
+    variables:
+      compiler: vc141
+      platform: x86
+      combination: 'win-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: 'choco install ninja python3'
+      testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
+      artifactBinaries: |
+        Bin/ShaderConductor.dll
+        Bin/ShaderConductorCmd.exe
+        Bin/dxcompiler.dll
+        Lib/ShaderConductor.lib
+  
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
+  
+  - job: Windows_vc141_x64
+    pool:
+      vmImage: VS2017-Win2016
+  
+    variables:
+      compiler: vc141
+      combination: 'win-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: 'choco install ninja python3'
+      testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
+      artifactBinaries: |
+        Bin/ShaderConductor.dll
+        Bin/ShaderConductorCmd.exe
+        Bin/dxcompiler.dll
+        Lib/ShaderConductor.lib
+  
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
+  
+  - job: Windows_vc142_x86
+    pool:
+      vmImage: windows-2019
+  
+    variables:
+      compiler: vc142
+      platform: x86
+      combination: 'win-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: 'choco install ninja'
+      testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
+      artifactBinaries: |
+        Bin/ShaderConductor.dll
+        Bin/ShaderConductorCmd.exe
+        Bin/dxcompiler.dll
+        Lib/ShaderConductor.lib
+  
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
+  
+  - job: Windows_vc142_x64
+    pool:
+      vmImage: windows-2019
+  
+    variables:
+      compiler: vc142
+      combination: 'win-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: 'choco install ninja'
+      testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
+      artifactBinaries: |
+        Bin/ShaderConductor.dll
+        Bin/ShaderConductorCmd.exe
+        Bin/dxcompiler.dll
+        Lib/ShaderConductor.lib
+  
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
+  
+  - job: Linux_gcc7
+    pool:
+      vmImage: Ubuntu-18.04
+  
+    variables:
+      compiler: gcc7
+      combination: 'linux-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: |
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+        sudo apt-get update
+        sudo apt-get install g++-7 ninja-build python3
+      testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
+      artifactBinaries: |
+        Bin/ShaderConductorCmd
+        Lib/libdxcompiler.so
+        Lib/libShaderConductor.so
+      CC: gcc-7
+      CXX: g++-7
+  
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
+  
+  - job: Linux_gcc8
+    pool:
+      vmImage: Ubuntu-18.04
+  
+    variables:
+      compiler: gcc8
+      combination: 'linux-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: |
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+        sudo apt-get update
+        sudo apt-get install g++-8 ninja-build python3
+      testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
+      artifactBinaries: |
+        Bin/ShaderConductorCmd
+        Lib/libdxcompiler.so
+        Lib/libShaderConductor.so
+      CC: gcc-8
+      CXX: g++-8
+  
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
+  
+  - job: Linux_clang7
+    pool:
+      vmImage: Ubuntu-18.04
+  
+    variables:
+      compiler: clang7
+      combination: 'linux-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: |
+        wget -O - http://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main"
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+        sudo apt-get update
+        sudo apt-get install clang-7 libc++-7-dev libc++abi-7-dev lld-7 ninja-build python3
+      testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
+      artifactBinaries: |
+        Bin/ShaderConductorCmd
+        Lib/libdxcompiler.so
+        Lib/libShaderConductor.so
+      CC: clang-7
+      CXX: clang++-7
+  
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
+  
+  - job: Linux_clang8
+    pool:
+      vmImage: Ubuntu-18.04
+  
+    variables:
+      compiler: clang8
+      combination: 'linux-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: |
+        wget -O - http://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main"
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+        sudo apt-get update
+        sudo apt-get install clang-8 libc++-8-dev libc++abi-8-dev lld-8 ninja-build python3
+      testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
+      artifactBinaries: |
+        Bin/ShaderConductorCmd
+        Lib/libdxcompiler.so
+        Lib/libShaderConductor.so
+      CC: clang-8
+      CXX: clang++-8
+  
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
+  
+  - job: macOS_10_clang
+    pool:
+      vmImage: macOS 10.14
+  
+    variables:
+      compiler: clang9
+      combination: 'osx-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: |
+        brew update
+        brew install ninja
+      testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
+      artifactBinaries: |
+        Bin/ShaderConductorCmd
+        Lib/libdxcompiler.dylib
+        Lib/libShaderConductor.dylib
+      CC: clang
+      CXX: clang++
+  
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
