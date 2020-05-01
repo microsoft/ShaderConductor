@@ -145,7 +145,7 @@ int main(int argc, char** argv)
     std::string outputName;
     if (opts.count("output") == 0)
     {
-        static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl", "msl" };
+        static const std::string extMap[] = {"dxil", "spv", "hlsl", "glsl", "essl", "msl", "msl"};
         static_assert(sizeof(extMap) / sizeof(extMap[0]) == static_cast<uint32_t>(ShadingLanguage::NumShadingLanguages),
                       "extMap doesn't match with the number of shading languages.");
         outputName = fileName + "." + extMap[static_cast<uint32_t>(targetDesc.language)];

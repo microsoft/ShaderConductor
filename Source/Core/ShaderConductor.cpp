@@ -444,7 +444,7 @@ namespace
                 valueUtf16 = nullptr;
             }
 
-            dxcDefines.push_back({ nameUtf16, valueUtf16 });
+            dxcDefines.push_back({nameUtf16, valueUtf16});
         }
 
         CComPtr<IDxcBlobEncoding> sourceBlob;
@@ -473,7 +473,7 @@ namespace
 
         if (options.enable16bitTypes)
         {
-            if (options.shaderModel >= Compiler::ShaderModel{ 6, 2 })
+            if (options.shaderModel >= Compiler::ShaderModel{6, 2})
             {
                 dxcArgStrings.push_back(L"-enable-16bit-types");
             }
