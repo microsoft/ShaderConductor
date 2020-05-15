@@ -12,11 +12,6 @@ source_group("Source Files" FILES ${SOURCE_FILES})
 
 add_library(${DLL_NAME} SHARED ${SOURCE_FILES})
 
-target_include_directories(${DLL_NAME}
-    PRIVATE
-        $<TARGET_PROPERTY:ShaderConductor,INTERFACE_INCLUDE_DIRECTORIES>
-)
-
 target_link_libraries(${DLL_NAME}
     PRIVATE
         ShaderConductor

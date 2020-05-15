@@ -62,8 +62,6 @@ if(SC_CLANGFORMAT)
     return()
 endif()
 
-# DirectXShaderCompiler requires it
-add_definitions(-D_ITERATOR_DEBUG_LEVEL=0)
 # Handle a compiling issue of SPIR-V
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")

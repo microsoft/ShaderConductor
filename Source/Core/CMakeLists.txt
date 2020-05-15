@@ -50,14 +50,10 @@ target_include_directories(${LIB_NAME}
     PRIVATE
         ${SC_BUILD_DIR}/External/DirectXShaderCompiler/include
         ${SC_ROOT_DIR}/External/DirectXShaderCompiler/include
-        $<TARGET_PROPERTY:spirv-cross-core,INTERFACE_INCLUDE_DIRECTORIES>
 )
 target_compile_definitions(${LIB_NAME}
     PRIVATE
         -DSHADER_CONDUCTOR_SOURCE
-        -DDBG
-        -DSUPPORT_QUERY_GIT_COMMIT_INFO
-        -DENABLE_SPIRV_CODEGEN
 )
 if(MSVC)
     target_compile_definitions(${LIB_NAME}
@@ -69,10 +65,8 @@ if(MSVC)
     )
 endif()
 target_link_libraries(${LIB_NAME}
-    PUBLIC
-        dxcompiler
-
     PRIVATE
+        dxcompiler
         LLVMDxcSupport
         LLVMSupport
         spirv-cross-core

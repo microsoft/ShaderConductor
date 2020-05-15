@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
-set(DirectXShaderCompiler_REV "002ed9737e389cebbefd1e8376bff6ad8a642340")
+set(DirectXShaderCompiler_REV "a5365731f0e1ce961fd1f155eb25ff3343ed5e2b")
 
 UpdateExternalLib("DirectXShaderCompiler" "https://github.com/Microsoft/DirectXShaderCompiler.git" ${DirectXShaderCompiler_REV})
 
@@ -13,6 +13,7 @@ set(LLVM_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
 set(HLSL_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)
 set(HLSL_BUILD_DXILCONV OFF CACHE BOOL "" FORCE)
 set(HLSL_SUPPORT_QUERY_GIT_COMMIT_INFO OFF CACHE BOOL "" FORCE)
+set(HLSL_ENABLE_DEBUG_ITERATORS ON CACHE BOOL "" FORCE)
 set(LLVM_TARGETS_TO_BUILD "None" CACHE STRING "" FORCE)
 set(LLVM_INCLUDE_DOCS OFF CACHE BOOL "" FORCE)
 set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "" FORCE)

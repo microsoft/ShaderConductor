@@ -44,11 +44,6 @@ source_group("Data Files\\Input\\Inc" FILES ${DATA_INC_FILES})
 
 add_executable(${EXE_NAME} ${SOURCE_FILES} ${DATA_FILES} ${DATA_INC_FILES})
 
-target_include_directories(${EXE_NAME}
-    PRIVATE
-        $<TARGET_PROPERTY:ShaderConductor,INTERFACE_INCLUDE_DIRECTORIES>
-        $<TARGET_PROPERTY:gtest,INTERFACE_INCLUDE_DIRECTORIES>
-)
 target_compile_definitions(${EXE_NAME}
     PRIVATE
         -DTEST_DATA_DIR="${SC_ROOT_DIR}/Source/Tests/Data/"

@@ -6,7 +6,6 @@ set(SPIRV_Tools_REV "fd773eb50d628c1981338addc093df879757c2cf")
 UpdateExternalLib("SPIRV-Tools" "https://github.com/KhronosGroup/SPIRV-Tools.git" ${SPIRV_Tools_REV})
 
 set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
-set(SPIRV_TOOLS_EXTRA_DEFINITIONS /D_ITERATOR_DEBUG_LEVEL=0)
 add_subdirectory(SPIRV-Tools EXCLUDE_FROM_ALL)
 foreach(target
     "core_tables" "enum_string_mapping" "extinst_tables"
