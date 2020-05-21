@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
-set(DirectXShaderCompiler_REV "a5365731f0e1ce961fd1f155eb25ff3343ed5e2b")
+set(DirectXShaderCompiler_REV "55155365947bbf3840974eb3b600af7a2e46aa1a")
 
 UpdateExternalLib("DirectXShaderCompiler" "https://github.com/Microsoft/DirectXShaderCompiler.git" ${DirectXShaderCompiler_REV})
 
