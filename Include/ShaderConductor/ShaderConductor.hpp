@@ -154,10 +154,10 @@ namespace ShaderConductor
             int optimizationLevel = 3; // 0 to 3, no optimization to most optimization
             ShaderModel shaderModel = {6, 0};
 
-            int shiftAllTexturesBindings;
-            int shiftAllSamplersBindings;
-            int shiftAllCBuffersBindings;
-            int shiftAllUABuffersBindings;
+            int shiftAllTexturesBindings = 0;
+            int shiftAllSamplersBindings = 0;
+            int shiftAllCBuffersBindings = 0;
+            int shiftAllUABuffersBindings = 0;
         };
 
         struct TargetDesc
