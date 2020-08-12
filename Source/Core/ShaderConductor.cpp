@@ -396,7 +396,7 @@ namespace
     }
 
     Compiler::ResultDesc CompileToBinary(const Compiler::SourceDesc& source, const Compiler::Options& options,
-                                         ShadingLanguage targetLanguage, bool asModule)
+                                         ShadingLanguage targetLanguage, bool asModule, bool glFriendlyLayout)
     {
         assert((targetLanguage == ShadingLanguage::Dxil) || (targetLanguage == ShadingLanguage::SpirV));
 
@@ -549,6 +549,9 @@ namespace
         default:
             llvm_unreachable("Invalid shading language.");
         }
+
+        if (glFriendlyLayout)
+            dxcArgStrings.push_back(L"-fvk-use-gl-layout"); 
 
         std::vector<const wchar_t*> dxcArgs;
         dxcArgs.reserve(dxcArgStrings.size());
@@ -898,6 +901,7 @@ namespace ShaderConductor
         bool hasDxil = false;
         bool hasDxilModule = false;
         bool hasSpirV = false;
+        bool hasGL = false;
         for (uint32_t i = 0; i < numTargets; ++i)
         {
             if (targets[i].language == ShadingLanguage::Dxil)
@@ -912,24 +916,27 @@ namespace ShaderConductor
             {
                 hasSpirV = true;
             }
+
+            if (targets[i].language == ShadingLanguage::Glsl || targets[i].language == ShadingLanguage::Essl)
+                hasGL = true;
         }
 
         ResultDesc dxilBinaryResult{};
         if (hasDxil)
         {
-            dxilBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::Dxil, false);
+            dxilBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::Dxil, false, false);
         }
 
         ResultDesc dxilModuleBinaryResult{};
         if (hasDxilModule)
         {
-            dxilModuleBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::Dxil, true);
+            dxilModuleBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::Dxil, true, false);
         }
 
         ResultDesc spirvBinaryResult{};
         if (hasSpirV)
         {
-            spirvBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::SpirV, false);
+            spirvBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::SpirV, false, hasGL);
         }
 
         for (uint32_t i = 0; i < numTargets; ++i)
