@@ -551,7 +551,9 @@ namespace
         }
 
         if (glFriendlyLayout)
-            dxcArgStrings.push_back(L"-fvk-use-gl-layout"); 
+        {
+            dxcArgStrings.push_back(L"-fvk-use-gl-layout");
+        }
 
         std::vector<const wchar_t*> dxcArgs;
         dxcArgs.reserve(dxcArgStrings.size());
@@ -918,7 +920,9 @@ namespace ShaderConductor
             }
 
             if (targets[i].language == ShadingLanguage::Glsl || targets[i].language == ShadingLanguage::Essl)
+            {
                 hasGL = true;
+            }
         }
 
         ResultDesc dxilBinaryResult{};
