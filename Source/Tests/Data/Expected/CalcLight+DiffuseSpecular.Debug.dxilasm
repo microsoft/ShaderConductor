@@ -15,8 +15,8 @@
 ; -------------------- ----- ------ -------- -------- ------- ------
 ; SV_Target                0   xyzw        0   TARGET   float   xyzw
 ;
-; shader debug name: 3173c150c164bd12fbb10535a796e08b.pdb
-; shader hash: 3173c150c164bd12fbb10535a796e08b
+; shader debug name: 65620ef187dc1e38cb91d8208665ef7d.pdb
+; shader hash: 65620ef187dc1e38cb91d8208665ef7d
 ;
 ; Pipeline Runtime Information: 
 ;
@@ -87,14 +87,14 @@ declare float @dx.op.loadInput.f32(i32, i32, i32, i8, i32) #0
 ; Function Attrs: nounwind readonly
 declare %dx.types.CBufRet.f32 @dx.op.cbufferLoadLegacy.f32(i32, %dx.types.Handle, i32) #1
 
-; Function Attrs: nounwind readnone
-declare float @dx.op.binary.f32(i32, float, float) #0
+; Function Attrs: nounwind
+declare void @dx.op.storeOutput.f32(i32, i32, i32, i8, float) #2
 
 ; Function Attrs: nounwind readnone
 declare float @dx.op.dot3.f32(i32, float, float, float, float, float, float) #0
 
-; Function Attrs: nounwind
-declare void @dx.op.storeOutput.f32(i32, i32, i32, i8, float) #2
+; Function Attrs: nounwind readnone
+declare float @dx.op.binary.f32(i32, float, float) #0
 
 ; Function Attrs: nounwind readnone
 declare float @dx.op.unary.f32(i32, float) #0
