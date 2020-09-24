@@ -2,6 +2,11 @@ steps:
 - bash: eval '$(installCommand)'
   displayName: 'Install'
 
+- script: |
+    git config --global user.email "dummy@example.com"
+    git config --global user.name "Dummy Name"
+  displayName: 'Config git'
+
 - task: PythonScript@0
   displayName: 'Build'
   inputs:
@@ -10,6 +15,7 @@ steps:
 
 - bash: eval '$(testCommand)'
   displayName: 'Test'
+  condition: not(eq('$(testCommand)', ''))
 
 - bash: 'echo $BUILD_SOURCEVERSION > $BUILD_ARTIFACTSTAGINGDIRECTORY/GIT-COMMIT.txt'
   displayName: 'Add commit info'

@@ -88,6 +88,18 @@ namespace
             return m_containerReflection;
         }
 
+        CComPtr<IDxcLinker> CreateLinker() const
+        {
+            CComPtr<IDxcLinker> linker;
+            IFT(m_createInstanceFunc(CLSID_DxcLinker, __uuidof(IDxcLinker), reinterpret_cast<void**>(&linker)));
+            return linker;
+        }
+
+        bool LinkerSupport() const
+        {
+            return m_linkerSupport;
+        }
+
         void Destroy()
         {
             if (m_dxcompilerDll)
@@ -171,6 +183,8 @@ namespace
             {
                 throw std::runtime_error("COULDN'T load dxcompiler.");
             }
+
+            m_linkerSupport = (CreateLinker() != nullptr);
         }
 
     private:
@@ -180,6 +194,8 @@ namespace
         CComPtr<IDxcLibrary> m_library;
         CComPtr<IDxcCompiler> m_compiler;
         CComPtr<IDxcContainerReflection> m_containerReflection;
+
+        bool m_linkerSupport;
     };
 
     class ScIncludeHandler : public IDxcIncludeHandler
@@ -215,8 +231,8 @@ namespace
             }
 
             *includeSource = nullptr;
-            return Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(
-                source->Data(), source->Size(), CP_UTF8, reinterpret_cast<IDxcBlobEncoding**>(includeSource));
+            return Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(source->Data(), source->Size(), CP_UTF8,
+                                                                                      reinterpret_cast<IDxcBlobEncoding**>(includeSource));
         }
 
         ULONG STDMETHODCALLTYPE AddRef() override
@@ -269,10 +285,10 @@ namespace
         if (includeFile)
         {
             includeFile.seekg(0, std::ios::end);
-            ret.resize(includeFile.tellg());
+            ret.resize(static_cast<size_t>(includeFile.tellg()));
             includeFile.seekg(0, std::ios::beg);
             includeFile.read(ret.data(), ret.size());
-            ret.resize(includeFile.gcount());
+            ret.resize(static_cast<size_t>(includeFile.gcount()));
         }
         else
         {
@@ -443,13 +459,10 @@ namespace
     }
 #endif
 
-    Compiler::ResultDesc CompileToBinary(const Compiler::SourceDesc& source, const Compiler::Options& options,
-                                         ShadingLanguage targetLanguage)
+    std::wstring ShaderProfileName(ShaderStage stage, Compiler::ShaderModel shaderModel)
     {
-        assert((targetLanguage == ShadingLanguage::Dxil) || (targetLanguage == ShadingLanguage::SpirV));
-
         std::wstring shaderProfile;
-        switch (source.stage)
+        switch (stage)
         {
         case ShaderStage::VertexShader:
             shaderProfile = L"vs";
@@ -478,10 +491,80 @@ namespace
         default:
             llvm_unreachable("Invalid shader stage.");
         }
+
         shaderProfile.push_back(L'_');
-        shaderProfile.push_back(L'0' + options.shaderModel.major_ver);
+        shaderProfile.push_back(L'0' + shaderModel.major_ver);
         shaderProfile.push_back(L'_');
-        shaderProfile.push_back(L'0' + options.shaderModel.minor_ver);
+        shaderProfile.push_back(L'0' + shaderModel.minor_ver);
+
+        return shaderProfile;
+    }
+
+    void ConvertDxcResult(Compiler::ResultDesc& result, IDxcOperationResult* dxcResult)
+    {
+        HRESULT status;
+        IFT(dxcResult->GetStatus(&status));
+
+        result.target = nullptr;
+        result.errorWarningMsg = nullptr;
+        result.reflectionDescs = nullptr;
+        result.reflectionDescCount = 0;
+        result.instructionCount = 0;
+
+        CComPtr<IDxcBlobEncoding> errors;
+        IFT(dxcResult->GetErrorBuffer(&errors));
+        if (errors != nullptr)
+        {
+            if (errors->GetBufferSize() > 0)
+            {
+                result.errorWarningMsg = CreateBlob(errors->GetBufferPointer(), static_cast<uint32_t>(errors->GetBufferSize()));
+            }
+            errors = nullptr;
+        }
+
+        result.hasError = true;
+        if (SUCCEEDED(status))
+        {
+            CComPtr<IDxcBlob> program;
+            IFT(dxcResult->GetResult(&program));
+            dxcResult = nullptr;
+            if (program != nullptr)
+            {
+                result.target = CreateBlob(program->GetBufferPointer(), static_cast<uint32_t>(program->GetBufferSize()));
+                result.hasError = false;
+            }
+
+#ifdef LLVM_ON_WIN32
+            if (targetLanguage == ShadingLanguage::Dxil)
+            {
+                // Gather reflection information only for ShadingLanguage::Dxil
+                Reflection(source, program, &ret);
+            }
+#endif
+        }
+    }
+
+    Compiler::ResultDesc CompileToBinary(const Compiler::SourceDesc& source, const Compiler::Options& options,
+                                         ShadingLanguage targetLanguage, bool asModule)
+    {
+        assert((targetLanguage == ShadingLanguage::Dxil) || (targetLanguage == ShadingLanguage::SpirV));
+
+        std::wstring shaderProfile;
+        if (asModule)
+        {
+            if (targetLanguage == ShadingLanguage::Dxil)
+            {
+                shaderProfile = L"lib_6_x";
+            }
+            else
+            {
+                llvm_unreachable("Spir-V module is not supported.");
+            }
+        }
+        else
+        {
+            shaderProfile = ShaderProfileName(source.stage, options.shaderModel);
+        }
 
         std::vector<DxcDefine> dxcDefines;
         std::vector<std::wstring> dxcDefineStrings;
@@ -510,7 +593,7 @@ namespace
                 valueUtf16 = nullptr;
             }
 
-            dxcDefines.push_back({ nameUtf16, valueUtf16 });
+            dxcDefines.push_back({nameUtf16, valueUtf16});
         }
 
         CComPtr<IDxcBlobEncoding> sourceBlob;
@@ -530,16 +613,16 @@ namespace
         // See also https://antiagainst.github.io/post/hlsl-for-vulkan-matrices/
         if (options.packMatricesInRowMajor)
         {
-            dxcArgStrings.push_back(L"-Zpc");
+            dxcArgStrings.push_back(L"-Zpr");
         }
         else
         {
-            dxcArgStrings.push_back(L"-Zpr");
+            dxcArgStrings.push_back(L"-Zpc");
         }
 
         if (options.enable16bitTypes)
         {
-            if (options.shaderModel >= Compiler::ShaderModel{ 6, 2 })
+            if (options.shaderModel >= Compiler::ShaderModel{6, 2})
             {
                 dxcArgStrings.push_back(L"-enable-16bit-types");
             }
@@ -568,6 +651,34 @@ namespace
             {
                 llvm_unreachable("Invalid optimization level.");
             }
+        }
+
+        if (options.shiftAllCBuffersBindings > 0)
+        {
+            dxcArgStrings.push_back(L"-fvk-b-shift");
+            dxcArgStrings.push_back(std::to_wstring(options.shiftAllCBuffersBindings));
+            dxcArgStrings.push_back(L"all");
+        }
+
+        if (options.shiftAllUABuffersBindings > 0)
+        {
+            dxcArgStrings.push_back(L"-fvk-u-shift");
+            dxcArgStrings.push_back(std::to_wstring(options.shiftAllUABuffersBindings));
+            dxcArgStrings.push_back(L"all");
+        }
+
+        if (options.shiftAllSamplersBindings > 0)
+        {
+            dxcArgStrings.push_back(L"-fvk-s-shift");
+            dxcArgStrings.push_back(std::to_wstring(options.shiftAllSamplersBindings));
+            dxcArgStrings.push_back(L"all");
+        }
+
+        if (options.shiftAllTexturesBindings > 0)
+        {
+            dxcArgStrings.push_back(L"-fvk-t-shift");
+            dxcArgStrings.push_back(std::to_wstring(options.shiftAllTexturesBindings));
+            dxcArgStrings.push_back(L"all");
         }
 
         switch (targetLanguage)
@@ -601,55 +712,14 @@ namespace
                                                        dxcArgs.data(), static_cast<UINT32>(dxcArgs.size()), dxcDefines.data(),
                                                        static_cast<UINT32>(dxcDefines.size()), includeHandler, &compileResult));
 
-        HRESULT status;
-        IFT(compileResult->GetStatus(&status));
-
-        Compiler::ResultDesc ret;
-
-        ret.target = nullptr;
-        ret.isText = false;
-        ret.errorWarningMsg = nullptr;
-        ret.reflectionDescs = nullptr;
-        ret.reflectionDescCount = 0;
-        ret.instructionCount = 0;
-
-        CComPtr<IDxcBlobEncoding> errors;
-        IFT(compileResult->GetErrorBuffer(&errors));
-        if (errors != nullptr)
-        {
-            if (errors->GetBufferSize() > 0)
-            {
-                ret.errorWarningMsg = CreateBlob(errors->GetBufferPointer(), static_cast<uint32_t>(errors->GetBufferSize()));
-            }
-            errors = nullptr;
-        }
-
-        ret.hasError = true;
-        if (SUCCEEDED(status))
-        {
-            CComPtr<IDxcBlob> program;
-            IFT(compileResult->GetResult((IDxcBlob**)&program));
-            compileResult = nullptr;
-            if (program != nullptr)
-            {
-                ret.target = CreateBlob(program->GetBufferPointer(), static_cast<uint32_t>(program->GetBufferSize()));
-                ret.hasError = false;
-            }
-
-#ifdef LLVM_ON_WIN32
-            if (targetLanguage == ShadingLanguage::Dxil)
-            {
-                // Gather reflection information only for ShadingLanguage::Dxil
-                Reflection(source, program, &ret);
-            }
-#endif
-        }
+        Compiler::ResultDesc ret{};
+        ConvertDxcResult(ret, compileResult);
 
         return ret;
     }
 
-    Compiler::ResultDesc ConvertBinary(const Compiler::ResultDesc& binaryResult, const Compiler::SourceDesc& source,
-                                       const Compiler::TargetDesc& target)
+    Compiler::ResultDesc CrossCompile(const Compiler::ResultDesc& binaryResult, const Compiler::SourceDesc& source,
+                                      const Compiler::TargetDesc& target)
     {
         assert((target.language != ShadingLanguage::Dxil) && (target.language != ShadingLanguage::SpirV));
         assert((binaryResult.target->Size() & (sizeof(uint32_t) - 1)) == 0);
@@ -709,6 +779,36 @@ namespace
             compiler = std::make_unique<spirv_cross::CompilerGLSL>(spirvIr, spirvSize);
             combinedImageSamplers = true;
             buildDummySampler = true;
+
+            // Legacy GLSL fixups
+            if (intVersion <= 300)
+            {
+                auto vars = compiler->get_active_interface_variables();
+                for (auto& var : vars)
+                {
+                    auto varClass = compiler->get_storage_class(var);
+
+                    // Make VS out and PS in variable names match
+                    if ((source.stage == ShaderStage::VertexShader) && (varClass == spv::StorageClass::StorageClassOutput))
+                    {
+                        auto name = compiler->get_name(var);
+                        if (name.find("out_var") == 0)
+                        {
+                            name.replace(0, 7, "varying");
+                            compiler->set_name(var, name);
+                        }
+                    }
+                    else if ((source.stage == ShaderStage::PixelShader) && (varClass == spv::StorageClass::StorageClassInput))
+                    {
+                        auto name = compiler->get_name(var);
+                        if (name.find("in_var") == 0)
+                        {
+                            name.replace(0, 6, "varying");
+                            compiler->set_name(var, name);
+                        }
+                    }
+                }
+            }
             break;
 
         case ShadingLanguage::Msl_macOS:
@@ -878,6 +978,42 @@ namespace
 
         return ret;
     }
+
+    Compiler::ResultDesc ConvertBinary(const Compiler::ResultDesc& binaryResult, const Compiler::SourceDesc& source,
+                                       const Compiler::TargetDesc& target)
+    {
+        if (!binaryResult.hasError)
+        {
+            if (target.asModule)
+            {
+                return binaryResult;
+            }
+            else
+            {
+                switch (target.language)
+                {
+                case ShadingLanguage::Dxil:
+                case ShadingLanguage::SpirV:
+                    return binaryResult;
+
+                case ShadingLanguage::Hlsl:
+                case ShadingLanguage::Glsl:
+                case ShadingLanguage::Essl:
+                case ShadingLanguage::Msl_macOS:
+                case ShadingLanguage::Msl_iOS:
+                    return CrossCompile(binaryResult, source, target);
+
+                default:
+                    llvm_unreachable("Invalid shading language.");
+                    break;
+                }
+            }
+        }
+        else
+        {
+            return binaryResult;
+        }
+    }
 } // namespace
 
 namespace ShaderConductor
@@ -915,12 +1051,17 @@ namespace ShaderConductor
         }
 
         bool hasDxil = false;
+        bool hasDxilModule = false;
         bool hasSpirV = false;
         for (uint32_t i = 0; i < numTargets; ++i)
         {
             if (targets[i].language == ShadingLanguage::Dxil)
             {
                 hasDxil = true;
+                if (targets[i].asModule)
+                {
+                    hasDxilModule = true;
+                }
             }
             else
             {
@@ -931,18 +1072,40 @@ namespace ShaderConductor
         ResultDesc dxilBinaryResult{};
         if (hasDxil)
         {
-            dxilBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::Dxil);
+            dxilBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::Dxil, false);
+        }
+
+        ResultDesc dxilModuleBinaryResult{};
+        if (hasDxilModule)
+        {
+            dxilModuleBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::Dxil, true);
         }
 
         ResultDesc spirvBinaryResult{};
         if (hasSpirV)
         {
-            spirvBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::SpirV);
+            spirvBinaryResult = CompileToBinary(sourceOverride, options, ShadingLanguage::SpirV, false);
         }
 
         for (uint32_t i = 0; i < numTargets; ++i)
         {
-            ResultDesc binaryResult = targets[i].language == ShadingLanguage::Dxil ? dxilBinaryResult : spirvBinaryResult;
+            ResultDesc binaryResult;
+            if (targets[i].language == ShadingLanguage::Dxil)
+            {
+                if (targets[i].asModule)
+                {
+                    binaryResult = dxilModuleBinaryResult;
+                }
+                else
+                {
+                    binaryResult = dxilBinaryResult;
+                }
+            }
+            else
+            {
+                binaryResult = spirvBinaryResult;
+            }
+
             if (binaryResult.target)
             {
                 binaryResult.target = CreateBlob(binaryResult.target->Data(), binaryResult.target->Size());
@@ -951,38 +1114,18 @@ namespace ShaderConductor
             {
                 binaryResult.errorWarningMsg = CreateBlob(binaryResult.errorWarningMsg->Data(), binaryResult.errorWarningMsg->Size());
             }
-            if (!binaryResult.hasError)
-            {
-                switch (targets[i].language)
-                {
-                case ShadingLanguage::Dxil:
-                case ShadingLanguage::SpirV:
-                    results[i] = binaryResult;
-                    break;
-
-                case ShadingLanguage::Hlsl:
-                case ShadingLanguage::Glsl:
-                case ShadingLanguage::Essl:
-                case ShadingLanguage::Msl_macOS:
-                case ShadingLanguage::Msl_iOS:
-                    results[i] = ConvertBinary(binaryResult, sourceOverride, targets[i]);
-                    break;
-
-                default:
-                    llvm_unreachable("Invalid shading language.");
-                    break;
-                }
-            }
-            else
-            {
-                results[i] = binaryResult;
-            }
+            results[i] = ConvertBinary(binaryResult, sourceOverride, targets[i]);
         }
 
         if (hasDxil)
         {
             DestroyBlob(dxilBinaryResult.target);
             DestroyBlob(dxilBinaryResult.errorWarningMsg);
+        }
+        if (hasDxilModule)
+        {
+            DestroyBlob(dxilModuleBinaryResult.target);
+            DestroyBlob(dxilModuleBinaryResult.errorWarningMsg);
         }
         if (hasSpirV)
         {
@@ -1053,6 +1196,51 @@ namespace ShaderConductor
         return ret;
     }
 
+    bool Compiler::LinkSupport()
+    {
+        return Dxcompiler::Instance().LinkerSupport();
+    }
+
+    Compiler::ResultDesc Compiler::Link(const LinkDesc& modules, const Compiler::Options& options, const TargetDesc& target)
+    {
+        auto linker = Dxcompiler::Instance().CreateLinker();
+        IFTPTR(linker);
+
+        auto* library = Dxcompiler::Instance().Library();
+
+        std::vector<std::wstring> moduleNames(modules.numModules);
+        std::vector<const wchar_t*> moduleNamesUtf16(modules.numModules);
+        std::vector<CComPtr<IDxcBlobEncoding>> moduleBlobs(modules.numModules);
+        for (uint32_t i = 0; i < modules.numModules; ++i)
+        {
+            IFTARG(modules.modules[i] != nullptr);
+
+            IFT(library->CreateBlobWithEncodingOnHeapCopy(modules.modules[i]->target->Data(), modules.modules[i]->target->Size(), CP_UTF8,
+                                                          &moduleBlobs[i]));
+            IFTARG(moduleBlobs[i]->GetBufferSize() >= 4);
+
+            Unicode::UTF8ToUTF16String(modules.modules[i]->name, &moduleNames[i]);
+            moduleNamesUtf16[i] = moduleNames[i].c_str();
+            IFT(linker->RegisterLibrary(moduleNamesUtf16[i], moduleBlobs[i]));
+        }
+
+        std::wstring entryPointUtf16;
+        Unicode::UTF8ToUTF16String(modules.entryPoint, &entryPointUtf16);
+
+        const std::wstring shaderProfile = ShaderProfileName(modules.stage, options.shaderModel);
+        CComPtr<IDxcOperationResult> linkResult;
+        IFT(linker->Link(entryPointUtf16.c_str(), shaderProfile.c_str(), moduleNamesUtf16.data(),
+                         static_cast<UINT32>(moduleNamesUtf16.size()), nullptr, 0, &linkResult));
+
+        Compiler::ResultDesc binaryResult{};
+        ConvertDxcResult(binaryResult, linkResult);
+
+        Compiler::SourceDesc source{};
+        source.entryPoint = modules.entryPoint;
+        source.stage = modules.stage;
+        return ConvertBinary(binaryResult, source, target);
+    }
+
     void Compiler::DestroyResultDesc(ResultDesc* results)
     {
         Compiler::ReflectionDesc reflectionDesc{};
@@ -1062,7 +1250,6 @@ namespace ShaderConductor
             delete[] reflectionDesc.name;
         }
     }
-
 } // namespace ShaderConductor
 
 #ifdef _WIN32

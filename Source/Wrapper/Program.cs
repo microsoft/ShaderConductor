@@ -43,38 +43,26 @@ namespace CSharpConsole
                 source = source,
             };
 
+            Wrapper.OptionsDesc optionsDesc = Wrapper.OptionsDesc.Default;
+            //optionsDesc.packMatricesInRowMajor = true;
+            //optionsDesc.enable16bitTypes = true;
+            //optionsDesc.enableDebugInfo = true;
+            //optionsDesc.disableOptimizations = true;
+            //optionsDesc.optimizationLevel = 3;
+            //optionsDesc.shaderModel = new Wrapper.ShaderModel(6, 2);
+            //optionsDesc.shiftAllCBuffersBindings = 10;
+            //optionsDesc.shiftAllTexturesBindings = 20;
+            //optionsDesc.shiftAllSamplersBindings = 30;
+            //optionsDesc.shiftAllUABuffersBindings = 40;
+
             Wrapper.TargetDesc targetDesc = new Wrapper.TargetDesc()
             {
-                language = Wrapper.ShadingLanguage.SpirV,
+                language = Wrapper.ShadingLanguage.Glsl,
                 version = "460",
+                asModule = false,
             };
 
-            Wrapper.Compile(ref sourceDesc, ref targetDesc, out Wrapper.ResultDesc result);
-
-            if (!result.isText)
-            {
-                Wrapper.DisassembleDesc disassembleDesc = new Wrapper.DisassembleDesc()
-                {
-                    language = targetDesc.language,
-                    binarySize = Wrapper.GetShaderConductorBlobSize(result.target),
-                    binary = Wrapper.GetShaderConductorBlobData(result.target),
-                };
-
-                Wrapper.Disassemble(ref disassembleDesc, out Wrapper.ResultDesc disassembleResult);
-                Wrapper.DestroyShaderConductorBlob(result.target);
-                Wrapper.DestroyShaderConductorBlob(result.errorWarningMsg);
-                result = disassembleResult;
-            }
-
-            if (result.isText)
-            {
-                string translation = Marshal.PtrToStringAnsi(Wrapper.GetShaderConductorBlobData(result.target),
-                    Wrapper.GetShaderConductorBlobSize(result.target));
-                Console.WriteLine("*************************\n" +
-                                  "**  Translation        **\n" +
-                                  "*************************\n");
-                Console.WriteLine(translation);
-            }
+            Wrapper.Compile(ref sourceDesc, ref optionsDesc, ref targetDesc, out Wrapper.ResultDesc result);
 
             if (result.hasError)
             {
@@ -85,6 +73,33 @@ namespace CSharpConsole
                                   "*************************\n");
                 Console.WriteLine(warning);
             }
+            else
+            {
+                if (!result.isText)
+                {
+                    Wrapper.DisassembleDesc disassembleDesc = new Wrapper.DisassembleDesc()
+                    {
+                        language = targetDesc.language,
+                        binarySize = Wrapper.GetShaderConductorBlobSize(result.target),
+                        binary = Wrapper.GetShaderConductorBlobData(result.target),
+                    };
+
+                    Wrapper.Disassemble(ref disassembleDesc, out Wrapper.ResultDesc disassembleResult);
+                    Wrapper.DestroyShaderConductorBlob(result.target);
+                    Wrapper.DestroyShaderConductorBlob(result.errorWarningMsg);
+                    result = disassembleResult;
+                }
+
+                if (result.isText)
+                {
+                    string translation = Marshal.PtrToStringAnsi(Wrapper.GetShaderConductorBlobData(result.target),
+                        Wrapper.GetShaderConductorBlobSize(result.target));
+                    Console.WriteLine("*************************\n" +
+                                      "**  Translation        **\n" +
+                                      "*************************\n");
+                    Console.WriteLine(translation);
+                }
+            }            
 
             Wrapper.DestroyShaderConductorBlob(result.target);
             Wrapper.DestroyShaderConductorBlob(result.errorWarningMsg);

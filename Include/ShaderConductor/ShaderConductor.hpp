@@ -159,18 +159,24 @@ namespace ShaderConductor
         struct Options
         {
             bool packMatricesInRowMajor = true; // Experimental: Decide how a matrix get packed
-            bool enable16bitTypes = false; // Enable 16-bit types, such as half, uint16_t. Requires shader model 6.2+
-            bool enableDebugInfo = false; // Embed debug info into the binary
-            bool disableOptimizations = false; // Force to turn off optimizations. Ignore optimizationLevel below.
+            bool enable16bitTypes = false;      // Enable 16-bit types, such as half, uint16_t. Requires shader model 6.2+
+            bool enableDebugInfo = false;       // Embed debug info into the binary
+            bool disableOptimizations = false;  // Force to turn off optimizations. Ignore optimizationLevel below.
 
             int optimizationLevel = 3; // 0 to 3, no optimization to most optimization
-            ShaderModel shaderModel = { 6, 0 };
+            ShaderModel shaderModel = {6, 0};
+
+            int shiftAllTexturesBindings = 0;
+            int shiftAllSamplersBindings = 0;
+            int shiftAllCBuffersBindings = 0;
+            int shiftAllUABuffersBindings = 0;
         };
 
         struct TargetDesc
         {
             ShadingLanguage language;
             const char* version;
+            bool asModule;
         };
 
 		struct ReflectionDesc
@@ -198,8 +204,23 @@ namespace ShaderConductor
         struct DisassembleDesc
         {
             ShadingLanguage language;
-            uint8_t* binary;
+            const uint8_t* binary;
             uint32_t binarySize;
+        };
+
+        struct ModuleDesc
+        {
+            const char* name;
+            Blob* target;
+        };
+
+        struct LinkDesc
+        {
+            const char* entryPoint;
+            ShaderStage stage;
+
+            const ModuleDesc** modules;
+            uint32_t numModules;
         };
 
     public:
@@ -208,7 +229,11 @@ namespace ShaderConductor
                             ResultDesc* results);
         static ResultDesc Disassemble(const DisassembleDesc& source);
 
-		static void DestroyResultDesc(ResultDesc* results);
+        // Currently only Dxil on Windows supports linking
+        static bool LinkSupport();
+        static ResultDesc Link(const LinkDesc& modules, const Options& options, const TargetDesc& target);
+
+        static void DestroyResultDesc(ResultDesc* results);
     };
 } // namespace ShaderConductor
 

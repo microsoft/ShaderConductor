@@ -21,7 +21,7 @@ struct main0_in
 vertex main0_out main0(main0_in in [[stage_in]], constant type_cbVS& cbVS [[buffer(0)]])
 {
     main0_out out = {};
-    out.gl_Position = in.in_var_POSITION * cbVS.wvp;
+    out.gl_Position = cbVS.wvp * in.in_var_POSITION;
     return out;
 }
 
