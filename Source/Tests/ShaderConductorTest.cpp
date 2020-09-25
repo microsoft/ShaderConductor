@@ -92,7 +92,7 @@ namespace
             if (expectSuccessFlags[i])
             {
                 EXPECT_FALSE(result.hasError);
-                EXPECT_EQ(result.errorWarningMsg, nullptr);
+                EXPECT_EQ(result.errorWarningMsg.Size(), 0U);
                 EXPECT_TRUE(result.isText);
 
                 std::string compareName = name;
@@ -102,18 +102,14 @@ namespace
                 }
                 compareName += "." + extMap[static_cast<uint32_t>(targets[i].language)];
 
-                const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
-                CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, compareName);
+                const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target.Data());
+                CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target.Size()), result.isText, compareName);
             }
             else
             {
                 EXPECT_TRUE(result.hasError);
-                EXPECT_EQ(result.target, nullptr);
+                EXPECT_EQ(result.target.Size(), 0U);
             }
-
-            DestroyBlob(result.errorWarningMsg);
-            DestroyBlob(result.target);
-            Compiler::DestroyResultDesc(result);
         }
     }
 
@@ -127,10 +123,7 @@ namespace
         EXPECT_FALSE(result.hasError);
         EXPECT_FALSE(result.isText);
 
-        DestroyBlob(result.errorWarningMsg);
-        Compiler::DestroyResultDesc(result);
-
-        return {moduleName, result.target};
+        return {moduleName, std::move(result.target)};
     }
 
     class TestBase : public testing::Test
@@ -521,15 +514,11 @@ namespace
             Compiler::Compile({source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader}, {}, {ShadingLanguage::Glsl, "30"});
 
         EXPECT_FALSE(result.hasError);
-        EXPECT_EQ(result.errorWarningMsg, nullptr);
+        EXPECT_EQ(result.errorWarningMsg.Size(), 0U);
         EXPECT_TRUE(result.isText);
 
-        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
-        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, "IncludeExist.glsl");
-
-        DestroyBlob(result.errorWarningMsg);
-        DestroyBlob(result.target);
-        Compiler::DestroyResultDesc(result);
+        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target.Data());
+        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target.Size()), result.isText, "IncludeExist.glsl");
     }
 
     TEST(IncludeTest, IncludeNotExist)
@@ -543,12 +532,8 @@ namespace
             Compiler::Compile({source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader}, {}, {ShadingLanguage::Glsl, "30"});
 
         EXPECT_TRUE(result.hasError);
-        const char* errorStr = reinterpret_cast<const char*>(result.errorWarningMsg->Data());
-        EXPECT_GE(std::string(errorStr, errorStr + result.errorWarningMsg->Size()).find("fatal error: 'Header.hlsli' file not found"), 0U);
-
-        DestroyBlob(result.errorWarningMsg);
-        DestroyBlob(result.target);
-        Compiler::DestroyResultDesc(result);
+        const char* errorStr = reinterpret_cast<const char*>(result.errorWarningMsg.Data());
+        EXPECT_GE(std::string(errorStr, errorStr + result.errorWarningMsg.Size()).find("fatal error: 'Header.hlsli' file not found"), 0U);
     }
 
     TEST(IncludeTest, IncludeEmptyFile)
@@ -562,15 +547,11 @@ namespace
             Compiler::Compile({source.c_str(), fileName.c_str(), "main", ShaderStage::PixelShader}, {}, {ShadingLanguage::Glsl, "30"});
 
         EXPECT_FALSE(result.hasError);
-        EXPECT_EQ(result.errorWarningMsg, nullptr);
+        EXPECT_EQ(result.errorWarningMsg.Size(), 0U);
         EXPECT_TRUE(result.isText);
 
-        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
-        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, "IncludeEmptyHeader.glsl");
-
-        DestroyBlob(result.errorWarningMsg);
-        DestroyBlob(result.target);
-        Compiler::DestroyResultDesc(result);
+        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target.Data());
+        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target.Size()), result.isText, "IncludeEmptyHeader.glsl");
     }
 
     TEST(HalfDataTypeTest, DotHalf)
@@ -590,12 +571,8 @@ namespace
         EXPECT_FALSE(result.hasError);
         EXPECT_TRUE(result.isText);
 
-        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
-        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, "DotHalfPS.glsl");
-
-        DestroyBlob(result.errorWarningMsg);
-        DestroyBlob(result.target);
-        Compiler::DestroyResultDesc(result);
+        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target.Data());
+        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target.Size()), result.isText, "DotHalfPS.glsl");
     }
 
     TEST(HalfDataTypeTest, HalfOutParam)
@@ -615,12 +592,8 @@ namespace
         EXPECT_FALSE(result.hasError);
         EXPECT_TRUE(result.isText);
 
-        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target->Data());
-        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target->Size()), result.isText, "HalfOutParamPS.glsl");
-
-        DestroyBlob(result.errorWarningMsg);
-        DestroyBlob(result.target);
-        Compiler::DestroyResultDesc(result);
+        const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(result.target.Data());
+        CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + result.target.Size()), result.isText, "HalfOutParamPS.glsl");
     }
 
     TEST(LinkTest, LinkDxil)
@@ -658,27 +631,14 @@ namespace
             EXPECT_FALSE(linkedResult.isText);
 
             Compiler::DisassembleDesc disasmDesc;
-            disasmDesc.binary = reinterpret_cast<const uint8_t*>(linkedResult.target->Data());
-            disasmDesc.binarySize = linkedResult.target->Size();
+            disasmDesc.binary = reinterpret_cast<const uint8_t*>(linkedResult.target.Data());
+            disasmDesc.binarySize = linkedResult.target.Size();
             disasmDesc.language = ShadingLanguage::Dxil;
             const auto disasmResult = Compiler::Disassemble(disasmDesc);
 
-            const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(disasmResult.target->Data());
-            CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + disasmResult.target->Size()), disasmResult.isText,
+            const uint8_t* target_ptr = reinterpret_cast<const uint8_t*>(disasmResult.target.Data());
+            CompareWithExpected(std::vector<uint8_t>(target_ptr, target_ptr + disasmResult.target.Size()), disasmResult.isText,
                                 expectedNames[i]);
-
-            DestroyBlob(linkedResult.errorWarningMsg);
-            DestroyBlob(linkedResult.target);
-            Compiler::DestroyResultDesc(linkedResult);
-
-            DestroyBlob(disasmResult.errorWarningMsg);
-            DestroyBlob(disasmResult.target);
-            Compiler::DestroyResultDesc(disasmResult);
-        }
-
-        for (auto& mod : dxilModules)
-        {
-            DestroyBlob(mod.target);
         }
     }
 } // namespace

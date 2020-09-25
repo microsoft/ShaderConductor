@@ -101,14 +101,25 @@ namespace ShaderConductor
     class SC_API Blob
     {
     public:
-        virtual ~Blob();
+        Blob() noexcept;
+        Blob(const void* data, uint32_t size);
+        Blob(const Blob& other);
+        Blob(Blob&& other) noexcept;
+        ~Blob() noexcept;
 
-        virtual const void* Data() const = 0;
-        virtual uint32_t Size() const = 0;
+        Blob& operator=(const Blob& other);
+        Blob& operator=(Blob&& other) noexcept;
+
+        void Reset();
+        void Reset(const void* data, uint32_t size);
+
+        const void* Data() const noexcept;
+        uint32_t Size() const noexcept;
+
+    private:
+        class BlobImpl;
+        BlobImpl* m_impl = nullptr;
     };
-
-    SC_API Blob* CreateBlob(const void* data, uint32_t size);
-    SC_API void DestroyBlob(Blob* blob);
 
     class SC_API Compiler
     {
@@ -153,7 +164,7 @@ namespace ShaderConductor
             ShaderStage stage;
             const MacroDefine* defines;
             uint32_t numDefines;
-            std::function<Blob*(const char* includeName)> loadIncludeCallback;
+            std::function<Blob(const char* includeName)> loadIncludeCallback;
         };
 
         struct Options
@@ -181,7 +192,7 @@ namespace ShaderConductor
 
         struct ReflectionDesc
         {
-            char* name;               // Name of the resource
+            char name[256];           // Name of the resource
             ShaderResourceType type;  // Type of resource (e.g. texture, cbuffer, etc.)
             uint32_t bufferBindPoint; // Buffer's starting bind point
             uint32_t bindPoint;       // Starting bind point
@@ -190,17 +201,17 @@ namespace ShaderConductor
 
         struct ReflectionResultDesc
         {
-            Blob* descs = nullptr; // The underneath type is ReflectionDesc
+            Blob descs; // The underneath type is ReflectionDesc
             uint32_t descCount = 0;
             uint32_t instructionCount = 0;
         };
 
         struct ResultDesc
         {
-            Blob* target;
+            Blob target;
             bool isText;
 
-            Blob* errorWarningMsg;
+            Blob errorWarningMsg;
             bool hasError;
 
             ReflectionResultDesc reflection;
@@ -216,7 +227,7 @@ namespace ShaderConductor
         struct ModuleDesc
         {
             const char* name;
-            Blob* target;
+            Blob target;
         };
 
         struct LinkDesc
@@ -237,8 +248,6 @@ namespace ShaderConductor
         // Currently only Dxil on Windows supports linking
         static bool LinkSupport();
         static ResultDesc Link(const LinkDesc& modules, const Options& options, const TargetDesc& target);
-
-        static void DestroyResultDesc(const ResultDesc& result);
     };
 } // namespace ShaderConductor
 
