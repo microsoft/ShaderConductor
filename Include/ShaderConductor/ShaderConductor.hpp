@@ -80,6 +80,18 @@ namespace ShaderConductor
         NumShadingLanguages,
     };
 
+    enum class ShaderResourceType : uint32_t
+    {
+        ConstantBuffer,
+        Parameter,
+        Texture,
+        Sampler,
+        ShaderResourceView,
+        UnorderedAccessView,
+
+        NumShaderResourceType,
+    };
+
     struct MacroDefine
     {
         const char* name;
@@ -167,6 +179,22 @@ namespace ShaderConductor
             bool asModule;
         };
 
+        struct ReflectionDesc
+        {
+            char* name;               // Name of the resource
+            ShaderResourceType type;  // Type of resource (e.g. texture, cbuffer, etc.)
+            uint32_t bufferBindPoint; // Buffer's starting bind point
+            uint32_t bindPoint;       // Starting bind point
+            uint32_t bindCount;       // Number of contiguous bind points (for arrays)
+        };
+
+        struct ReflectionResultDesc
+        {
+            Blob* descs = nullptr; // The underneath type is ReflectionDesc
+            uint32_t descCount = 0;
+            uint32_t instructionCount = 0;
+        };
+
         struct ResultDesc
         {
             Blob* target;
@@ -174,6 +202,8 @@ namespace ShaderConductor
 
             Blob* errorWarningMsg;
             bool hasError;
+
+            ReflectionResultDesc reflection;
         };
 
         struct DisassembleDesc
@@ -207,6 +237,8 @@ namespace ShaderConductor
         // Currently only Dxil on Windows supports linking
         static bool LinkSupport();
         static ResultDesc Link(const LinkDesc& modules, const Options& options, const TargetDesc& target);
+
+        static void DestroyResultDesc(const ResultDesc& result);
     };
 } // namespace ShaderConductor
 

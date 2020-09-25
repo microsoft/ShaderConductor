@@ -113,6 +113,7 @@ namespace
 
             DestroyBlob(result.errorWarningMsg);
             DestroyBlob(result.target);
+            Compiler::DestroyResultDesc(result);
         }
     }
 
@@ -127,6 +128,7 @@ namespace
         EXPECT_FALSE(result.isText);
 
         DestroyBlob(result.errorWarningMsg);
+        Compiler::DestroyResultDesc(result);
 
         return {moduleName, result.target};
     }
@@ -527,6 +529,7 @@ namespace
 
         DestroyBlob(result.errorWarningMsg);
         DestroyBlob(result.target);
+        Compiler::DestroyResultDesc(result);
     }
 
     TEST(IncludeTest, IncludeNotExist)
@@ -545,6 +548,7 @@ namespace
 
         DestroyBlob(result.errorWarningMsg);
         DestroyBlob(result.target);
+        Compiler::DestroyResultDesc(result);
     }
 
     TEST(IncludeTest, IncludeEmptyFile)
@@ -566,6 +570,7 @@ namespace
 
         DestroyBlob(result.errorWarningMsg);
         DestroyBlob(result.target);
+        Compiler::DestroyResultDesc(result);
     }
 
     TEST(HalfDataTypeTest, DotHalf)
@@ -590,6 +595,7 @@ namespace
 
         DestroyBlob(result.errorWarningMsg);
         DestroyBlob(result.target);
+        Compiler::DestroyResultDesc(result);
     }
 
     TEST(HalfDataTypeTest, HalfOutParam)
@@ -614,6 +620,7 @@ namespace
 
         DestroyBlob(result.errorWarningMsg);
         DestroyBlob(result.target);
+        Compiler::DestroyResultDesc(result);
     }
 
     TEST(LinkTest, LinkDxil)
@@ -662,9 +669,11 @@ namespace
 
             DestroyBlob(linkedResult.errorWarningMsg);
             DestroyBlob(linkedResult.target);
+            Compiler::DestroyResultDesc(linkedResult);
 
             DestroyBlob(disasmResult.errorWarningMsg);
             DestroyBlob(disasmResult.target);
+            Compiler::DestroyResultDesc(disasmResult);
         }
 
         for (auto& mod : dxilModules)

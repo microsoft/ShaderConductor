@@ -235,6 +235,7 @@ int main(int argc, char** argv)
 
         DestroyBlob(result.errorWarningMsg);
         DestroyBlob(result.target);
+        Compiler::DestroyResultDesc(result);
     }
     catch (std::exception& ex)
     {
