@@ -749,18 +749,18 @@ namespace
                     if ((source.stage == ShaderStage::VertexShader) && (varClass == spv::StorageClass::StorageClassOutput))
                     {
                         auto name = compiler->get_name(var);
-                        if (name.find("out_var") == 0)
+                        if ((name.find("out_var_") == 0) || (name.find("out.var.") == 0))
                         {
-                            name.replace(0, 7, "varying");
+                            name.replace(0, 8, "varying_");
                             compiler->set_name(var, name);
                         }
                     }
                     else if ((source.stage == ShaderStage::PixelShader) && (varClass == spv::StorageClass::StorageClassInput))
                     {
                         auto name = compiler->get_name(var);
-                        if (name.find("in_var") == 0)
+                        if ((name.find("in_var_") == 0) || (name.find("in.var.") == 0))
                         {
-                            name.replace(0, 6, "varying");
+                            name.replace(0, 7, "varying_");
                             compiler->set_name(var, name);
                         }
                     }
