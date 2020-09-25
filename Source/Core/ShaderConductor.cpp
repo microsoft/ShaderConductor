@@ -1177,7 +1177,8 @@ namespace ShaderConductor
 
             if (disassembly != nullptr)
             {
-                ret.target = CreateBlob(disassembly->GetBufferPointer(), static_cast<uint32_t>(disassembly->GetBufferSize()));
+                // Remove the tailing \0
+                ret.target = CreateBlob(disassembly->GetBufferPointer(), static_cast<uint32_t>(disassembly->GetBufferSize() - 1));
                 ret.hasError = false;
             }
             else
