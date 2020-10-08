@@ -45,11 +45,22 @@ int main(int argc, char** argv)
     // clang-format off
     options.add_options()
         ("E,entry", "Entry point of the shader", cxxopts::value<std::string>()->default_value("main"))
-        ("I,input", "Input file name", cxxopts::value<std::string>())("O,output", "Output file name", cxxopts::value<std::string>())
+        ("I,input", "Input file name", cxxopts::value<std::string>())
+        ("O,output", "Output file name", cxxopts::value<std::string>())
         ("S,stage", "Shader stage: vs, ps, gs, hs, ds, cs", cxxopts::value<std::string>())
         ("T,target", "Target shading language: dxil, spirv, hlsl, glsl, essl, msl_macos, msl_ios", cxxopts::value<std::string>()->default_value("dxil"))
         ("V,version", "The version of target shading language", cxxopts::value<std::string>()->default_value(""))
-        ("D,define", "Macro define as name=value", cxxopts::value<std::vector<std::string>>());
+        ("D,define", "Macro define as name=value", cxxopts::value<std::vector<std::string>>())
+        ("Mr,rowmajor", "Treat input HLSL matrices as row major, they will be transposed depending on the conventions of the output format", cxxopts::value<bool>()->default_value("false"))
+        ("Th,halftypes", "Enable 16bit data types, requires shader model 6.2+", cxxopts::value<bool>()->default_value("false"))
+        ("D,debuginfo", "Embed debug info into the binary", cxxopts::value<bool>()->default_value("false"))
+        ("Ol,optimization", "Optimization level, 0 to 3, no optimization to most optimization", cxxopts::value<int>()->default_value("3"))
+        ("Sma,majorshadermodel", "HLSL shader model major version", cxxopts::value<int>()->default_value("6"))
+        ("Smb,minorshadermodel", "HLSL shader model minor version", cxxopts::value<int>()->default_value("0"))
+        ("Bst,texturebindshift", "Shift all texture bindings by this value", cxxopts::value<int>()->default_value("0"))
+        ("Bss,samplerbindshift", "Shift all sampler bindings by this value", cxxopts::value<int>()->default_value("0"))
+        ("Bsc,cbufferbindshift", "Shift all cbuffer bindings by this value", cxxopts::value<int>()->default_value("0"))
+        ("Bsu,uabufferbindshift", "Shift all uabuffer bindings by this value", cxxopts::value<int>()->default_value("0"));
 
     // clang-format on
 
@@ -209,9 +220,21 @@ int main(int argc, char** argv)
         sourceDesc.numDefines = static_cast<uint32_t>(macroDefines.size());
     }
 
+    Compiler::Options compilerOptions{};
+    compilerOptions.packMatricesInRowMajor = opts["rowmajor"].as<bool>();
+    compilerOptions.enable16bitTypes = opts["halftypes"].as<bool>();
+    compilerOptions.enableDebugInfo = opts["debuginfo"].as<bool>();
+    compilerOptions.optimizationLevel = opts["optimization"].as<int>();
+    compilerOptions.shaderModel.major_ver = opts["majorshadermodel"].as<int>();
+    compilerOptions.shaderModel.minor_ver = opts["minorshadermodel"].as<int>();
+    compilerOptions.shiftAllTexturesBindings = opts["texturebindshift"].as<int>();
+    compilerOptions.shiftAllSamplersBindings = opts["samplerbindshift"].as<int>();
+    compilerOptions.shiftAllCBuffersBindings = opts["cbufferbindshift"].as<int>();
+    compilerOptions.shiftAllUABuffersBindings = opts["uabufferbindshift"].as<int>();
+
     try
     {
-        const auto result = Compiler::Compile(sourceDesc, {}, targetDesc);
+        const auto result = Compiler::Compile(sourceDesc, compilerOptions, targetDesc);
 
         if (result.errorWarningMsg.Size() > 0)
         {
