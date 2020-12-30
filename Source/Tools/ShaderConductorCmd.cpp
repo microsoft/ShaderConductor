@@ -213,13 +213,13 @@ int main(int argc, char** argv)
     {
         const auto result = Compiler::Compile(sourceDesc, {}, targetDesc);
 
-        if (result.errorWarningMsg != nullptr)
+        if (result.errorWarningMsg.Size() > 0)
         {
-            const char* msg = reinterpret_cast<const char*>(result.errorWarningMsg->Data());
+            const char* msg = reinterpret_cast<const char*>(result.errorWarningMsg.Data());
             std::cerr << "Error or warning from shader compiler: " << std::endl
-                      << std::string(msg, msg + result.errorWarningMsg->Size()) << std::endl;
+                      << std::string(msg, msg + result.errorWarningMsg.Size()) << std::endl;
         }
-        if (result.target != nullptr)
+        if (result.target.Size() > 0)
         {
             std::ofstream outputFile(outputName, std::ios_base::binary);
             if (!outputFile)
@@ -228,13 +228,10 @@ int main(int argc, char** argv)
                 return 1;
             }
 
-            outputFile.write(reinterpret_cast<const char*>(result.target->Data()), result.target->Size());
+            outputFile.write(reinterpret_cast<const char*>(result.target.Data()), result.target.Size());
 
             std::cout << "The compiled file is saved to " << outputName << std::endl;
         }
-
-        DestroyBlob(result.errorWarningMsg);
-        DestroyBlob(result.target);
     }
     catch (std::exception& ex)
     {

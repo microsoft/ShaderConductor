@@ -62,6 +62,7 @@ if(MSVC)
             -D_CRT_SECURE_NO_WARNINGS
             -D_SCL_SECURE_NO_DEPRECATE
             -D_SCL_SECURE_NO_WARNINGS
+            -D_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
     )
 endif()
 target_link_libraries(${LIB_NAME}

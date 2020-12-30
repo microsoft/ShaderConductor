@@ -36,6 +36,7 @@
 #include <fstream>
 #include <memory>
 
+#include <dxc/DxilContainer/DxilContainer.h>
 #include <dxc/dxcapi.h>
 #include <llvm/Support/ErrorHandling.h>
 
@@ -46,6 +47,10 @@
 #include <spirv_hlsl.hpp>
 #include <spirv_msl.hpp>
 #include <spirv_cross_util.hpp>
+
+#ifdef LLVM_ON_WIN32
+#include <d3d12shader.h>
+#endif
 
 #define SC_UNUSED(x) (void)(x);
 
@@ -79,6 +84,11 @@ namespace
             return m_compiler;
         }
 
+        IDxcContainerReflection* ContainerReflection() const
+        {
+            return m_containerReflection;
+        }
+
         CComPtr<IDxcLinker> CreateLinker() const
         {
             CComPtr<IDxcLinker> linker;
@@ -97,6 +107,7 @@ namespace
             {
                 m_compiler = nullptr;
                 m_library = nullptr;
+                m_containerReflection = nullptr;
 
                 m_createInstanceFunc = nullptr;
 
@@ -116,6 +127,7 @@ namespace
             {
                 m_compiler.Detach();
                 m_library.Detach();
+                m_containerReflection.Detach();
 
                 m_createInstanceFunc = nullptr;
 
@@ -158,6 +170,8 @@ namespace
                 {
                     IFT(m_createInstanceFunc(CLSID_DxcLibrary, __uuidof(IDxcLibrary), reinterpret_cast<void**>(&m_library)));
                     IFT(m_createInstanceFunc(CLSID_DxcCompiler, __uuidof(IDxcCompiler), reinterpret_cast<void**>(&m_compiler)));
+                    IFT(m_createInstanceFunc(CLSID_DxcContainerReflection, __uuidof(IDxcContainerReflection),
+                                             reinterpret_cast<void**>(&m_containerReflection)));
                 }
                 else
                 {
@@ -180,6 +194,7 @@ namespace
 
         CComPtr<IDxcLibrary> m_library;
         CComPtr<IDxcCompiler> m_compiler;
+        CComPtr<IDxcContainerReflection> m_containerReflection;
 
         bool m_linkerSupport;
     };
@@ -187,7 +202,7 @@ namespace
     class ScIncludeHandler : public IDxcIncludeHandler
     {
     public:
-        explicit ScIncludeHandler(std::function<Blob*(const char* includeName)> loadCallback) : m_loadCallback(std::move(loadCallback))
+        explicit ScIncludeHandler(std::function<Blob(const char* includeName)> loadCallback) : m_loadCallback(std::move(loadCallback))
         {
         }
 
@@ -204,12 +219,10 @@ namespace
                 return E_FAIL;
             }
 
-            auto blobDeleter = [](Blob* blob) { DestroyBlob(blob); };
-
-            std::unique_ptr<Blob, decltype(blobDeleter)> source(nullptr, blobDeleter);
+            Blob source;
             try
             {
-                source.reset(m_loadCallback(utf8FileName.c_str()));
+                source = m_loadCallback(utf8FileName.c_str());
             }
             catch (...)
             {
@@ -217,7 +230,7 @@ namespace
             }
 
             *includeSource = nullptr;
-            return Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(source->Data(), source->Size(), CP_UTF8,
+            return Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(source.Data(), source.Size(), CP_UTF8,
                                                                                       reinterpret_cast<IDxcBlobEncoding**>(includeSource));
         }
 
@@ -259,12 +272,12 @@ namespace
         }
 
     private:
-        std::function<Blob*(const char* includeName)> m_loadCallback;
+        std::function<Blob(const char* includeName)> m_loadCallback;
 
         std::atomic<ULONG> m_ref = 0;
     };
 
-    Blob* DefaultLoadCallback(const char* includeName)
+    Blob DefaultLoadCallback(const char* includeName)
     {
         std::vector<char> ret;
         std::ifstream includeFile(includeName, std::ios_base::in);
@@ -280,47 +293,136 @@ namespace
         {
             throw std::runtime_error(std::string("COULDN'T load included file ") + includeName + ".");
         }
-        return CreateBlob(ret.data(), static_cast<uint32_t>(ret.size()));
+        return Blob(ret.data(), static_cast<uint32_t>(ret.size()));
     }
-
-    class ScBlob : public Blob
-    {
-    public:
-        ScBlob(const void* data, uint32_t size)
-            : data_(reinterpret_cast<const uint8_t*>(data), reinterpret_cast<const uint8_t*>(data) + size)
-        {
-        }
-
-        const void* Data() const override
-        {
-            return data_.data();
-        }
-
-        uint32_t Size() const override
-        {
-            return static_cast<uint32_t>(data_.size());
-        }
-
-    private:
-        std::vector<uint8_t> data_;
-    };
 
     void AppendError(Compiler::ResultDesc& result, const std::string& msg)
     {
         std::string errorMSg;
-        if (result.errorWarningMsg != nullptr)
+        if (result.errorWarningMsg.Size() != 0)
         {
-            errorMSg.assign(reinterpret_cast<const char*>(result.errorWarningMsg->Data()), result.errorWarningMsg->Size());
+            errorMSg.assign(reinterpret_cast<const char*>(result.errorWarningMsg.Data()), result.errorWarningMsg.Size());
         }
         if (!errorMSg.empty())
         {
             errorMSg += "\n";
         }
         errorMSg += msg;
-        DestroyBlob(result.errorWarningMsg);
-        result.errorWarningMsg = CreateBlob(errorMSg.data(), static_cast<uint32_t>(errorMSg.size()));
+        result.errorWarningMsg.Reset(errorMSg.data(), static_cast<uint32_t>(errorMSg.size()));
         result.hasError = true;
     }
+
+#ifdef LLVM_ON_WIN32
+    template <typename T>
+    HRESULT CreateDxcReflectionFromBlob(IDxcBlob* dxilBlob, CComPtr<T>& outReflection)
+    {
+        IDxcContainerReflection* containReflection = Dxcompiler::Instance().ContainerReflection();
+        IFT(containReflection->Load(dxilBlob));
+
+        uint32_t dxilPartIndex = ~0u;
+        IFT(containReflection->FindFirstPartKind(hlsl::DFCC_DXIL, &dxilPartIndex));
+        HRESULT result = containReflection->GetPartReflection(dxilPartIndex, __uuidof(T), reinterpret_cast<void**>(&outReflection));
+
+        return result;
+    }
+
+    void ShaderReflection(Compiler::ReflectionResultDesc& result, IDxcBlob* dxilBlob)
+    {
+        CComPtr<ID3D12ShaderReflection> shaderReflection;
+        IFT(CreateDxcReflectionFromBlob(dxilBlob, shaderReflection));
+
+        D3D12_SHADER_DESC shaderDesc;
+        shaderReflection->GetDesc(&shaderDesc);
+
+        std::vector<Compiler::ReflectionDesc> vecReflectionDescs;
+        for (uint32_t resourceIndex = 0; resourceIndex < shaderDesc.BoundResources; ++resourceIndex)
+        {
+            D3D12_SHADER_INPUT_BIND_DESC bindDesc;
+            shaderReflection->GetResourceBindingDesc(resourceIndex, &bindDesc);
+
+            Compiler::ReflectionDesc reflectionDesc{};
+
+            if (bindDesc.Type == D3D_SIT_CBUFFER || bindDesc.Type == D3D_SIT_TBUFFER)
+            {
+                ID3D12ShaderReflectionConstantBuffer* constantBuffer = shaderReflection->GetConstantBufferByName(bindDesc.Name);
+
+                D3D12_SHADER_BUFFER_DESC bufferDesc;
+                constantBuffer->GetDesc(&bufferDesc);
+
+                if (strcmp(bufferDesc.Name, "$Globals") == 0)
+                {
+                    for (uint32_t variableIndex = 0; variableIndex < bufferDesc.Variables; ++variableIndex)
+                    {
+                        ID3D12ShaderReflectionVariable* variable = constantBuffer->GetVariableByIndex(variableIndex);
+                        D3D12_SHADER_VARIABLE_DESC variableDesc;
+                        variable->GetDesc(&variableDesc);
+
+                        std::strncpy(reflectionDesc.name, variableDesc.Name,
+                                     std::min(std::strlen(variableDesc.Name) + 1, sizeof(reflectionDesc.name)));
+
+                        reflectionDesc.type = ShaderResourceType::Parameter;
+                        reflectionDesc.bufferBindPoint = bindDesc.BindPoint;
+                        reflectionDesc.bindPoint = variableDesc.StartOffset;
+                        reflectionDesc.bindCount = variableDesc.Size;
+                    }
+                }
+                else
+                {
+                    std::strncpy(reflectionDesc.name, bufferDesc.Name,
+                                 std::min(std::strlen(bufferDesc.Name) + 1, sizeof(reflectionDesc.name)));
+
+                    reflectionDesc.type = ShaderResourceType::ConstantBuffer;
+                    reflectionDesc.bufferBindPoint = bindDesc.BindPoint;
+                    reflectionDesc.bindPoint = 0;
+                    reflectionDesc.bindCount = 0;
+                }
+            }
+            else
+            {
+                switch (bindDesc.Type)
+                {
+                case D3D_SIT_TEXTURE:
+                    reflectionDesc.type = ShaderResourceType::Texture;
+                    break;
+
+                case D3D_SIT_SAMPLER:
+                    reflectionDesc.type = ShaderResourceType::Sampler;
+                    break;
+
+                case D3D_SIT_STRUCTURED:
+                case D3D_SIT_BYTEADDRESS:
+                    reflectionDesc.type = ShaderResourceType::ShaderResourceView;
+                    break;
+
+                case D3D_SIT_UAV_RWTYPED:
+                case D3D_SIT_UAV_RWSTRUCTURED:
+                case D3D_SIT_UAV_RWBYTEADDRESS:
+                case D3D_SIT_UAV_APPEND_STRUCTURED:
+                case D3D_SIT_UAV_CONSUME_STRUCTURED:
+                case D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER:
+                    reflectionDesc.type = ShaderResourceType::UnorderedAccessView;
+                    break;
+
+                default:
+                    llvm_unreachable("Unknown bind type.");
+                    break;
+                }
+
+                std::strncpy(reflectionDesc.name, bindDesc.Name, std::min(std::strlen(bindDesc.Name) + 1, sizeof(reflectionDesc.name)));
+
+                reflectionDesc.bufferBindPoint = 0;
+                reflectionDesc.bindPoint = bindDesc.BindPoint;
+                reflectionDesc.bindCount = bindDesc.BindCount;
+            }
+
+            vecReflectionDescs.push_back(reflectionDesc);
+        }
+
+        result.descCount = static_cast<uint32_t>(vecReflectionDescs.size());
+        result.descs.Reset(vecReflectionDescs.data(), sizeof(Compiler::ReflectionDesc) * result.descCount);
+        result.instructionCount = shaderDesc.InstructionCount;
+    }
+#endif
 
     std::wstring ShaderProfileName(ShaderStage stage, Compiler::ShaderModel shaderModel)
     {
@@ -363,22 +465,19 @@ namespace
         return shaderProfile;
     }
 
-    void ConvertDxcResult(Compiler::ResultDesc& result, IDxcOperationResult* dxcResult)
+    void ConvertDxcResult(Compiler::ResultDesc& result, IDxcOperationResult* dxcResult, ShadingLanguage targetLanguage, bool asModule)
     {
         HRESULT status;
         IFT(dxcResult->GetStatus(&status));
 
-        result.target = nullptr;
-        result.errorWarningMsg = nullptr;
+        result.target.Reset();
+        result.errorWarningMsg.Reset();
 
         CComPtr<IDxcBlobEncoding> errors;
         IFT(dxcResult->GetErrorBuffer(&errors));
         if (errors != nullptr)
         {
-            if (errors->GetBufferSize() > 0)
-            {
-                result.errorWarningMsg = CreateBlob(errors->GetBufferPointer(), static_cast<uint32_t>(errors->GetBufferSize()));
-            }
+            result.errorWarningMsg.Reset(errors->GetBufferPointer(), static_cast<uint32_t>(errors->GetBufferSize()));
             errors = nullptr;
         }
 
@@ -390,9 +489,20 @@ namespace
             dxcResult = nullptr;
             if (program != nullptr)
             {
-                result.target = CreateBlob(program->GetBufferPointer(), static_cast<uint32_t>(program->GetBufferSize()));
+                result.target.Reset(program->GetBufferPointer(), static_cast<uint32_t>(program->GetBufferSize()));
                 result.hasError = false;
             }
+
+#ifdef LLVM_ON_WIN32
+            if ((targetLanguage == ShadingLanguage::Dxil) && !asModule)
+            {
+                // Gather reflection information only for ShadingLanguage::Dxil
+                ShaderReflection(result.reflection, program);
+            }
+#else
+            SC_UNUSED(targetLanguage);
+            SC_UNUSED(asModule);
+#endif
         }
     }
 
@@ -449,8 +559,8 @@ namespace
         }
 
         CComPtr<IDxcBlobEncoding> sourceBlob;
-        IFT(Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(source.source, static_cast<UINT32>(strlen(source.source)),
-                                                                               CP_UTF8, &sourceBlob));
+        IFT(Dxcompiler::Instance().Library()->CreateBlobWithEncodingOnHeapCopy(
+            source.source, static_cast<UINT32>(std::strlen(source.source)), CP_UTF8, &sourceBlob));
         IFTARG(sourceBlob->GetBufferSize() >= 4);
 
         std::wstring shaderNameUtf16;
@@ -565,7 +675,7 @@ namespace
                                                        static_cast<UINT32>(dxcDefines.size()), includeHandler, &compileResult));
 
         Compiler::ResultDesc ret{};
-        ConvertDxcResult(ret, compileResult);
+        ConvertDxcResult(ret, compileResult, targetLanguage, asModule);
 
         return ret;
     }
@@ -574,11 +684,10 @@ namespace
                                       const Compiler::Options& options, const Compiler::TargetDesc& target)
     {
         assert((target.language != ShadingLanguage::Dxil) && (target.language != ShadingLanguage::SpirV));
-        assert((binaryResult.target->Size() & (sizeof(uint32_t) - 1)) == 0);
+        assert((binaryResult.target.Size() & (sizeof(uint32_t) - 1)) == 0);
 
         Compiler::ResultDesc ret;
 
-        ret.target = nullptr;
         ret.errorWarningMsg = binaryResult.errorWarningMsg;
         ret.isText = true;
 
@@ -588,8 +697,8 @@ namespace
             intVersion = std::stoi(target.version);
         }
 
-        const uint32_t* spirvIr = reinterpret_cast<const uint32_t*>(binaryResult.target->Data());
-        const size_t spirvSize = binaryResult.target->Size() / sizeof(uint32_t);
+        const uint32_t* spirvIr = reinterpret_cast<const uint32_t*>(binaryResult.target.Data());
+        const size_t spirvSize = binaryResult.target.Size() / sizeof(uint32_t);
 
         std::unique_ptr<spirv_cross::CompilerGLSL> compiler;
         bool combinedImageSamplers = false;
@@ -641,18 +750,18 @@ namespace
                     if ((source.stage == ShaderStage::VertexShader) && (varClass == spv::StorageClass::StorageClassOutput))
                     {
                         auto name = compiler->get_name(var);
-                        if (name.find("out_var") == 0)
+                        if ((name.find("out_var_") == 0) || (name.find("out.var.") == 0))
                         {
-                            name.replace(0, 7, "varying");
+                            name.replace(0, 8, "varying_");
                             compiler->set_name(var, name);
                         }
                     }
                     else if ((source.stage == ShaderStage::PixelShader) && (varClass == spv::StorageClass::StorageClassInput))
                     {
                         auto name = compiler->get_name(var);
-                        if (name.find("in_var") == 0)
+                        if ((name.find("in_var_") == 0) || (name.find("in.var.") == 0))
                         {
-                            name.replace(0, 6, "varying");
+                            name.replace(0, 7, "varying_");
                             compiler->set_name(var, name);
                         }
                     }
@@ -816,14 +925,17 @@ namespace
         try
         {
             const std::string targetStr = compiler->compile();
-            ret.target = CreateBlob(targetStr.data(), static_cast<uint32_t>(targetStr.size()));
+            ret.target.Reset(targetStr.data(), static_cast<uint32_t>(targetStr.size()));
             ret.hasError = false;
+            ret.reflection.descs.Reset(binaryResult.reflection.descs.Data(),
+                                       sizeof(Compiler::ReflectionDesc) * binaryResult.reflection.descCount);
+            ret.reflection.descCount = binaryResult.reflection.descCount;
+            ret.reflection.instructionCount = binaryResult.reflection.instructionCount;
         }
         catch (spirv_cross::CompilerError& error)
         {
             const char* errorMsg = error.what();
-            DestroyBlob(ret.errorWarningMsg);
-            ret.errorWarningMsg = CreateBlob(errorMsg, static_cast<uint32_t>(strlen(errorMsg)));
+            ret.errorWarningMsg.Reset(errorMsg, static_cast<uint32_t>(std::strlen(errorMsg)));
             ret.hasError = true;
         }
 
@@ -869,17 +981,94 @@ namespace
 
 namespace ShaderConductor
 {
-    Blob::~Blob() = default;
-
-    Blob* CreateBlob(const void* data, uint32_t size)
+    class Blob::BlobImpl
     {
-        return new ScBlob(data, size);
+    public:
+        BlobImpl(const void* data, uint32_t size) noexcept
+            : m_data(reinterpret_cast<const uint8_t*>(data), reinterpret_cast<const uint8_t*>(data) + size)
+        {
+        }
+
+        const void* Data() const noexcept
+        {
+            return m_data.data();
+        }
+
+        uint32_t Size() const noexcept
+        {
+            return static_cast<uint32_t>(m_data.size());
+        }
+
+    private:
+        std::vector<uint8_t> m_data;
+    };
+
+    Blob::Blob() noexcept = default;
+
+    Blob::Blob(const void* data, uint32_t size)
+    {
+        this->Reset(data, size);
     }
 
-    void DestroyBlob(Blob* blob)
+    Blob::Blob(const Blob& other)
     {
-        delete blob;
+        this->Reset(other.Data(), other.Size());
     }
+
+    Blob::Blob(Blob&& other) noexcept : m_impl(std::move(other.m_impl))
+    {
+        other.m_impl = nullptr;
+    }
+
+    Blob::~Blob() noexcept
+    {
+        delete m_impl;
+    }
+
+    Blob& Blob::operator=(const Blob& other)
+    {
+        if (this != &other)
+        {
+            this->Reset(other.Data(), other.Size());
+        }
+        return *this;
+    }
+
+    Blob& Blob::operator=(Blob&& other) noexcept
+    {
+        if (this != &other)
+        {
+            m_impl = std::move(other.m_impl);
+            other.m_impl = nullptr;
+        }
+        return *this;
+    }
+
+    void Blob::Reset()
+    {
+        delete m_impl;
+        m_impl = nullptr;
+    }
+
+    void Blob::Reset(const void* data, uint32_t size)
+    {
+        this->Reset();
+        if ((data != nullptr) && (size > 0))
+        {
+            m_impl = new BlobImpl(data, size);
+        }
+    }
+
+    const void* Blob::Data() const noexcept
+    {
+        return m_impl ? m_impl->Data() : nullptr;
+    }
+
+    uint32_t Blob::Size() const noexcept
+    {
+        return m_impl ? m_impl->Size() : 0;
+    }
+
 
     Compiler::ResultDesc Compiler::Compile(const SourceDesc& source, const Options& options, const TargetDesc& target)
     {
@@ -892,7 +1081,7 @@ namespace ShaderConductor
                            ResultDesc* results)
     {
         SourceDesc sourceOverride = source;
-        if (!sourceOverride.entryPoint || (strlen(sourceOverride.entryPoint) == 0))
+        if (!sourceOverride.entryPoint || (std::strlen(sourceOverride.entryPoint) == 0))
         {
             sourceOverride.entryPoint = "main";
         }
@@ -957,31 +1146,7 @@ namespace ShaderConductor
                 binaryResult = spirvBinaryResult;
             }
 
-            if (binaryResult.target)
-            {
-                binaryResult.target = CreateBlob(binaryResult.target->Data(), binaryResult.target->Size());
-            }
-            if (binaryResult.errorWarningMsg)
-            {
-                binaryResult.errorWarningMsg = CreateBlob(binaryResult.errorWarningMsg->Data(), binaryResult.errorWarningMsg->Size());
-            }
             results[i] = ConvertBinary(binaryResult, sourceOverride, options, targets[i]);
-        }
-
-        if (hasDxil)
-        {
-            DestroyBlob(dxilBinaryResult.target);
-            DestroyBlob(dxilBinaryResult.errorWarningMsg);
-        }
-        if (hasDxilModule)
-        {
-            DestroyBlob(dxilModuleBinaryResult.target);
-            DestroyBlob(dxilModuleBinaryResult.errorWarningMsg);
-        }
-        if (hasSpirV)
-        {
-            DestroyBlob(spirvBinaryResult.target);
-            DestroyBlob(spirvBinaryResult.errorWarningMsg);
         }
     }
 
@@ -991,9 +1156,7 @@ namespace ShaderConductor
 
         Compiler::ResultDesc ret;
 
-        ret.target = nullptr;
         ret.isText = true;
-        ret.errorWarningMsg = nullptr;
 
         if (source.language == ShadingLanguage::SpirV)
         {
@@ -1010,14 +1173,14 @@ namespace ShaderConductor
 
             if (error)
             {
-                ret.errorWarningMsg = CreateBlob(diagnostic->error, static_cast<uint32_t>(strlen(diagnostic->error)));
+                ret.errorWarningMsg.Reset(diagnostic->error, static_cast<uint32_t>(std::strlen(diagnostic->error)));
                 ret.hasError = true;
                 spvDiagnosticDestroy(diagnostic);
             }
             else
             {
                 const std::string disassemble = text->str;
-                ret.target = CreateBlob(disassemble.data(), static_cast<uint32_t>(disassemble.size()));
+                ret.target.Reset(disassemble.data(), static_cast<uint32_t>(disassemble.size()));
                 ret.hasError = false;
             }
 
@@ -1032,7 +1195,8 @@ namespace ShaderConductor
 
             if (disassembly != nullptr)
             {
-                ret.target = CreateBlob(disassembly->GetBufferPointer(), static_cast<uint32_t>(disassembly->GetBufferSize()));
+                // Remove the tailing \0
+                ret.target.Reset(disassembly->GetBufferPointer(), static_cast<uint32_t>(disassembly->GetBufferSize() - 1));
                 ret.hasError = false;
             }
             else
@@ -1063,7 +1227,7 @@ namespace ShaderConductor
         {
             IFTARG(modules.modules[i] != nullptr);
 
-            IFT(library->CreateBlobWithEncodingOnHeapCopy(modules.modules[i]->target->Data(), modules.modules[i]->target->Size(), CP_UTF8,
+            IFT(library->CreateBlobWithEncodingOnHeapCopy(modules.modules[i]->target.Data(), modules.modules[i]->target.Size(), CP_UTF8,
                                                           &moduleBlobs[i]));
             IFTARG(moduleBlobs[i]->GetBufferSize() >= 4);
 
@@ -1081,7 +1245,7 @@ namespace ShaderConductor
                          static_cast<UINT32>(moduleNamesUtf16.size()), nullptr, 0, &linkResult));
 
         Compiler::ResultDesc binaryResult{};
-        ConvertDxcResult(binaryResult, linkResult);
+        ConvertDxcResult(binaryResult, linkResult, ShadingLanguage::Dxil, false);
 
         Compiler::SourceDesc source{};
         source.entryPoint = modules.entryPoint;
