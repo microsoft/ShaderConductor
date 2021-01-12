@@ -52,7 +52,12 @@ struct OptionsDescription
     bool disableOptimizations = false;  // Force to turn off optimizations. Ignore optimizationLevel below.
     int optimizationLevel = 3;          // 0 to 3, no optimization to most optimization
 
-    ShaderModel shaderModel = { 6, 0 };
+    ShaderModel shaderModel = {6, 0};
+
+    int shiftAllTexturesBindings;
+    int shiftAllSamplersBindings;
+    int shiftAllCBuffersBindings;
+    int shiftAllUABuffersBindings;
 };
 
 struct TargetDescription

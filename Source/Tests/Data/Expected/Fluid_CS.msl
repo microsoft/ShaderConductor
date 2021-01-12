@@ -37,20 +37,15 @@ struct type_StructuredBuffer_ParticleForces
     ParticleForces _m0[1];
 };
 
-kernel void main0(constant type_cbSimulationConstants& cbSimulationConstants [[buffer(0)]], device type_RWStructuredBuffer_Particle& particlesRW [[buffer(0)]], const device type_StructuredBuffer_Particle& particlesRO [[buffer(0)]], const device type_StructuredBuffer_ParticleForces& particlesForcesRO [[buffer(2)]], uint3 gl_GlobalInvocationID [[thread_position_in_grid]], uint gl_LocalInvocationIndex [[thread_index_in_threadgroup]])
+kernel void main0(constant type_cbSimulationConstants& cbSimulationConstants [[buffer(0)]], device type_RWStructuredBuffer_Particle& particlesRW [[buffer(1)]], const device type_StructuredBuffer_Particle& particlesRO [[buffer(2)]], const device type_StructuredBuffer_ParticleForces& particlesForcesRO [[buffer(3)]], uint3 gl_GlobalInvocationID [[thread_position_in_grid]])
 {
-    float2 _51 = particlesRO._m0[gl_GlobalInvocationID.x].position;
-    float2 _53 = particlesRO._m0[gl_GlobalInvocationID.x].velocity;
-    float2 _57;
-    _57 = particlesForcesRO._m0[gl_GlobalInvocationID.x].acceleration;
-    for (uint _60 = 0u; _60 < 4u; )
-    {
-        _57 += (cbSimulationConstants.planes[_60].xy * (fast::min(dot(float3(_51, 1.0), cbSimulationConstants.planes[_60]), 0.0) * (-cbSimulationConstants.wallStiffness)));
-        _60++;
-        continue;
-    }
-    float2 _84 = _53 + ((_57 + cbSimulationConstants.gravity.xy) * cbSimulationConstants.timeStep);
-    particlesRW._m0[gl_GlobalInvocationID.x].position = _51 + (_84 * cbSimulationConstants.timeStep);
-    particlesRW._m0[gl_GlobalInvocationID.x].velocity = _84;
+    float2 _52 = particlesRO._m0[gl_GlobalInvocationID.x].position;
+    float2 _54 = particlesRO._m0[gl_GlobalInvocationID.x].velocity;
+    float2 _56 = particlesForcesRO._m0[gl_GlobalInvocationID.x].acceleration;
+    float3 _59 = float3(_52, 1.0);
+    float _67 = -cbSimulationConstants.wallStiffness;
+    float2 _102 = _54 + ((((((_56 + (cbSimulationConstants.planes[0u].xy * (fast::min(dot(_59, cbSimulationConstants.planes[0u]), 0.0) * _67))) + (cbSimulationConstants.planes[1u].xy * (fast::min(dot(_59, cbSimulationConstants.planes[1u]), 0.0) * _67))) + (cbSimulationConstants.planes[2u].xy * (fast::min(dot(_59, cbSimulationConstants.planes[2u]), 0.0) * _67))) + (cbSimulationConstants.planes[3u].xy * (fast::min(dot(_59, cbSimulationConstants.planes[3u]), 0.0) * _67))) + cbSimulationConstants.gravity.xy) * cbSimulationConstants.timeStep);
+    particlesRW._m0[gl_GlobalInvocationID.x].position = _52 + (_102 * cbSimulationConstants.timeStep);
+    particlesRW._m0[gl_GlobalInvocationID.x].velocity = _102;
 }
 

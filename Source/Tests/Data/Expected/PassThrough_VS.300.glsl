@@ -8,11 +8,11 @@ out gl_PerVertex
 
 in vec4 in_var_POSITION;
 in vec2 in_var_TEXCOORD0;
-layout(location = 0) out vec2 out_var_TEXCOORD0;
+layout(location = 0) out vec2 varying_TEXCOORD0;
 
 void main()
 {
-    out_var_TEXCOORD0 = in_var_TEXCOORD0;
+    varying_TEXCOORD0 = in_var_TEXCOORD0;
     gl_Position = in_var_POSITION;
 }
 

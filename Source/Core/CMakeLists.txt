@@ -44,18 +44,37 @@ add_library(${LIB_NAME} "SHARED"
 )
 
 target_include_directories(${LIB_NAME}
-    PUBLIC ${SC_ROOT_DIR}/Include
-    PRIVATE ${SC_BUILD_DIR}/External/DirectXShaderCompiler/include
-    PRIVATE ${SC_ROOT_DIR}/External/DirectXShaderCompiler/include
-    PRIVATE ${SC_ROOT_DIR}/External/SPIRV-Cross
-    PRIVATE ${SC_ROOT_DIR}/External/SPIRV-Tools/include
+    PUBLIC
+        ${SC_ROOT_DIR}/Include
+
+    PRIVATE
+        ${SC_BUILD_DIR}/External/DirectXShaderCompiler/include
+        ${SC_ROOT_DIR}/External/DirectXShaderCompiler/include
 )
-target_compile_definitions(${LIB_NAME} PRIVATE
-    -DSHADER_CONDUCTOR_SOURCE -DDBG -DSUPPORT_QUERY_GIT_COMMIT_INFO -DENABLE_SPIRV_CODEGEN
-    -D_CRT_SECURE_NO_DEPRECATE -D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_DEPRECATE -D_SCL_SECURE_NO_WARNINGS)
+target_compile_definitions(${LIB_NAME}
+    PRIVATE
+        -DSHADER_CONDUCTOR_SOURCE
+)
+if(MSVC)
+    target_compile_definitions(${LIB_NAME}
+        PRIVATE
+            -D_CRT_SECURE_NO_DEPRECATE
+            -D_CRT_SECURE_NO_WARNINGS
+            -D_SCL_SECURE_NO_DEPRECATE
+            -D_SCL_SECURE_NO_WARNINGS
+            -D_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
+    )
+endif()
 target_link_libraries(${LIB_NAME}
-    dxcompiler LLVMDxcSupport LLVMSupport
-    spirv-cross-core spirv-cross-glsl spirv-cross-hlsl spirv-cross-msl SPIRV-Tools
+    PRIVATE
+        dxcompiler
+        LLVMDxcSupport
+        LLVMSupport
+        spirv-cross-core
+        spirv-cross-glsl
+        spirv-cross-hlsl
+        spirv-cross-msl
+        SPIRV-Tools
 )
 
 add_dependencies(${LIB_NAME} spirv-cross-core spirv-cross-glsl spirv-cross-hlsl spirv-cross-msl)

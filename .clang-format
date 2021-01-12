@@ -5,7 +5,7 @@ AllowShortLoopsOnASingleLine: false
 AlwaysBreakTemplateDeclarations: true
 BreakBeforeBraces: Allman
 ColumnLimit: 140
-Cpp11BracedListStyle: false
+Cpp11BracedListStyle: true
 IndentWidth: 4
 Language: Cpp
 MaxEmptyLinesToKeep: 2

@@ -18,7 +18,7 @@ struct main0_in
     float2 in_var_TEXCOORD0 [[user(locn0)]];
 };
 
-fragment main0_out main0(main0_in in [[stage_in]], constant type_cbPS& cbPS [[buffer(0)]], texture2d<float> colorTex [[texture(0)]], texture2d<float> lumTex [[texture(1)]], texture2d<float> bloomTex [[texture(2)]], sampler pointSampler [[sampler(0)]], sampler linearSampler [[sampler(1)]], float4 gl_FragCoord [[position]])
+fragment main0_out main0(main0_in in [[stage_in]], constant type_cbPS& cbPS [[buffer(0)]], texture2d<float> colorTex [[texture(0)]], texture2d<float> lumTex [[texture(1)]], texture2d<float> bloomTex [[texture(2)]], sampler pointSampler [[sampler(0)]], sampler linearSampler [[sampler(1)]])
 {
     main0_out out = {};
     float4 _45 = colorTex.sample(pointSampler, in.in_var_TEXCOORD0);

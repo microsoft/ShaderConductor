@@ -12,11 +12,10 @@ source_group("Source Files" FILES ${SOURCE_FILES})
 
 add_library(${DLL_NAME} SHARED ${SOURCE_FILES})
 
-target_include_directories(${DLL_NAME} PRIVATE
-    ${SC_ROOT_DIR}/Include
+target_link_libraries(${DLL_NAME}
+    PRIVATE
+        ShaderConductor
 )
-
-target_link_libraries(${DLL_NAME} ShaderConductor)
 
 add_dependencies(${DLL_NAME} ShaderConductor)
 
@@ -42,4 +41,3 @@ add_executable(${CSHARP_TEST} ${SOURCE_FILES} ${DATA_FILES})
 add_dependencies(${CSHARP_TEST} ShaderConductorWrapper)
 
 set_target_properties(${CSHARP_TEST} PROPERTIES FOLDER "Wrapper")
-

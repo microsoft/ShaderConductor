@@ -39,18 +39,13 @@ layout(std430) readonly buffer type_StructuredBuffer_ParticleForces
 
 void main()
 {
-    vec2 _51 = particlesRO._m0[gl_GlobalInvocationID.x].position;
-    vec2 _53 = particlesRO._m0[gl_GlobalInvocationID.x].velocity;
-    vec2 _57;
-    _57 = particlesForcesRO._m0[gl_GlobalInvocationID.x].acceleration;
-    for (uint _60 = 0u; _60 < 4u; )
-    {
-        _57 += (cbSimulationConstants.planes[_60].xy * (min(dot(vec3(_51, 1.0), cbSimulationConstants.planes[_60]), 0.0) * (-cbSimulationConstants.wallStiffness)));
-        _60++;
-        continue;
-    }
-    vec2 _84 = _53 + ((_57 + cbSimulationConstants.gravity.xy) * cbSimulationConstants.timeStep);
-    particlesRW._m0[gl_GlobalInvocationID.x].position = _51 + (_84 * cbSimulationConstants.timeStep);
-    particlesRW._m0[gl_GlobalInvocationID.x].velocity = _84;
+    vec2 _52 = particlesRO._m0[gl_GlobalInvocationID.x].position;
+    vec2 _54 = particlesRO._m0[gl_GlobalInvocationID.x].velocity;
+    vec2 _56 = particlesForcesRO._m0[gl_GlobalInvocationID.x].acceleration;
+    vec3 _59 = vec3(_52, 1.0);
+    float _67 = -cbSimulationConstants.wallStiffness;
+    vec2 _102 = _54 + ((((((_56 + (cbSimulationConstants.planes[0u].xy * (min(dot(_59, cbSimulationConstants.planes[0u]), 0.0) * _67))) + (cbSimulationConstants.planes[1u].xy * (min(dot(_59, cbSimulationConstants.planes[1u]), 0.0) * _67))) + (cbSimulationConstants.planes[2u].xy * (min(dot(_59, cbSimulationConstants.planes[2u]), 0.0) * _67))) + (cbSimulationConstants.planes[3u].xy * (min(dot(_59, cbSimulationConstants.planes[3u]), 0.0) * _67))) + cbSimulationConstants.gravity.xy) * cbSimulationConstants.timeStep);
+    particlesRW._m0[gl_GlobalInvocationID.x].position = _52 + (_102 * cbSimulationConstants.timeStep);
+    particlesRW._m0[gl_GlobalInvocationID.x].velocity = _102;
 }
 

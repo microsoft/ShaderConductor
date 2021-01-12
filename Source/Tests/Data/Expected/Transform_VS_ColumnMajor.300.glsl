@@ -8,7 +8,7 @@ out gl_PerVertex
 
 layout(std140) uniform type_cbVS
 {
-    mat4 wvp;
+    layout(row_major) mat4 wvp;
 } cbVS;
 
 in vec4 in_var_POSITION;

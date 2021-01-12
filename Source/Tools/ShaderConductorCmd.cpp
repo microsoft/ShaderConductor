@@ -48,7 +48,9 @@ int main(int argc, char** argv)
         ("I,input", "Input file name", cxxopts::value<std::string>())("O,output", "Output file name", cxxopts::value<std::string>())
         ("S,stage", "Shader stage: vs, ps, gs, hs, ds, cs", cxxopts::value<std::string>())
         ("T,target", "Target shading language: dxil, spirv, hlsl, glsl, essl, msl_macos, msl_ios", cxxopts::value<std::string>()->default_value("dxil"))
-        ("V,version", "The version of target shading language", cxxopts::value<std::string>()->default_value(""));
+        ("V,version", "The version of target shading language", cxxopts::value<std::string>()->default_value(""))
+        ("D,define", "Macro define as name=value", cxxopts::value<std::vector<std::string>>());
+
     // clang-format on
 
     auto opts = options.parse(argc, argv);
@@ -143,7 +145,7 @@ int main(int argc, char** argv)
     std::string outputName;
     if (opts.count("output") == 0)
     {
-        static const std::string extMap[] = { "dxil", "spv", "hlsl", "glsl", "essl", "msl", "msl" };
+        static const std::string extMap[] = {"dxil", "spv", "hlsl", "glsl", "essl", "msl", "msl"};
         static_assert(sizeof(extMap) / sizeof(extMap[0]) == static_cast<uint32_t>(ShadingLanguage::NumShadingLanguages),
                       "extMap doesn't match with the number of shading languages.");
         outputName = fileName + "." + extMap[static_cast<uint32_t>(targetDesc.language)];
@@ -169,19 +171,55 @@ int main(int argc, char** argv)
     }
     sourceDesc.source = source.c_str();
 
-    // TODO: Support macro definition from command line
+    size_t numberOfDefines = opts.count("define");
+    std::vector<MacroDefine> macroDefines;
+    std::vector<std::string> macroStrings;
+    if (numberOfDefines > 0)
+    {
+        macroDefines.reserve(numberOfDefines);
+        macroStrings.reserve(numberOfDefines * 2);
+        auto& defines = opts["define"].as<std::vector<std::string>>();
+        for (const auto& define : defines)
+        {
+            MacroDefine macroDefine;
+            macroDefine.name = nullptr;
+            macroDefine.value = nullptr;
+
+            size_t splitPosition = define.find('=');
+            if (splitPosition != std::string::npos)
+            {
+                std::string macroName = define.substr(0, splitPosition);
+                std::string macroValue = define.substr(splitPosition + 1, define.size() - splitPosition - 1);
+
+                macroStrings.push_back(macroName);
+                macroDefine.name = macroStrings.back().c_str();
+                macroStrings.push_back(macroValue);
+                macroDefine.value = macroStrings.back().c_str();
+            }
+            else
+            {
+                macroStrings.push_back(define);
+                macroDefine.name = macroStrings.back().c_str();
+            }
+
+            macroDefines.push_back(macroDefine);
+        }
+
+        sourceDesc.defines = macroDefines.data();
+        sourceDesc.numDefines = static_cast<uint32_t>(macroDefines.size());
+    }
 
     try
     {
         const auto result = Compiler::Compile(sourceDesc, {}, targetDesc);
 
-        if (result.errorWarningMsg != nullptr)
+        if (result.errorWarningMsg.Size() > 0)
         {
-            const char* msg = reinterpret_cast<const char*>(result.errorWarningMsg->Data());
-            std::cerr << "Error or warning form shader compiler: " << std::endl
-                      << std::string(msg, msg + result.errorWarningMsg->Size()) << std::endl;
+            const char* msg = reinterpret_cast<const char*>(result.errorWarningMsg.Data());
+            std::cerr << "Error or warning from shader compiler: " << std::endl
+                      << std::string(msg, msg + result.errorWarningMsg.Size()) << std::endl;
         }
-        if (result.target != nullptr)
+        if (result.target.Size() > 0)
         {
             std::ofstream outputFile(outputName, std::ios_base::binary);
             if (!outputFile)
@@ -190,13 +228,10 @@ int main(int argc, char** argv)
                 return 1;
             }
 
-            outputFile.write(reinterpret_cast<const char*>(result.target->Data()), result.target->Size());
+            outputFile.write(reinterpret_cast<const char*>(result.target.Data()), result.target.Size());
 
             std::cout << "The compiled file is saved to " << outputName << std::endl;
         }
-
-        DestroyBlob(result.errorWarningMsg);
-        DestroyBlob(result.target);
     }
     catch (std::exception& ex)
     {
