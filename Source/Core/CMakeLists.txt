@@ -74,6 +74,7 @@ target_link_libraries(${LIB_NAME}
         spirv-cross-glsl
         spirv-cross-hlsl
         spirv-cross-msl
+        spirv-cross-util
         SPIRV-Tools
 )
 
