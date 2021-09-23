@@ -274,7 +274,7 @@ namespace
     private:
         std::function<Blob(const char* includeName)> m_loadCallback;
 
-        std::atomic<ULONG> m_ref = 0;
+        std::atomic<ULONG> m_ref = {0};
     };
 
     Blob DefaultLoadCallback(const char* includeName)
