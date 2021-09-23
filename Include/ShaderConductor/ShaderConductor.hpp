@@ -29,6 +29,7 @@
 #pragma once
 
 #include <functional>
+#include <stdint.h>
 
 #if defined(__clang__)
 #define SC_SYMBOL_EXPORT __attribute__((__visibility__("default")))
