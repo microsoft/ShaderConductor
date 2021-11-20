@@ -25,10 +25,10 @@
 
 #include <ShaderConductor/ShaderConductor.hpp>
 
+#include "Common.hpp"
+
 #include <gtest/gtest.h>
 
-#include <cassert>
-#include <fstream>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -37,46 +37,6 @@ using namespace ShaderConductor;
 
 namespace
 {
-    std::vector<uint8_t> LoadFile(const std::string& name, bool isText)
-    {
-        std::vector<uint8_t> ret;
-        std::ios_base::openmode mode = std::ios_base::in;
-        if (!isText)
-        {
-            mode |= std::ios_base::binary;
-        }
-        std::ifstream file(name, mode);
-        if (file)
-        {
-            file.seekg(0, std::ios::end);
-            ret.resize(static_cast<size_t>(file.tellg()));
-            file.seekg(0, std::ios::beg);
-            file.read(reinterpret_cast<char*>(ret.data()), ret.size());
-            ret.resize(static_cast<size_t>(file.gcount()));
-        }
-        return ret;
-    }
-
-    void CompareWithExpected(const std::vector<uint8_t>& actual, bool isText, const std::string& compareName)
-    {
-        std::vector<uint8_t> expected = LoadFile(TEST_DATA_DIR "Expected/" + compareName, isText);
-        if (expected != actual)
-        {
-            if (!actual.empty())
-            {
-                std::ios_base::openmode mode = std::ios_base::out;
-                if (!isText)
-                {
-                    mode |= std::ios_base::binary;
-                }
-                std::ofstream actualFile(TEST_DATA_DIR "Result/" + compareName, mode);
-                actualFile.write(reinterpret_cast<const char*>(actual.data()), actual.size());
-            }
-        }
-
-        EXPECT_EQ(std::string(expected.begin(), expected.end()), std::string(actual.begin(), actual.end()));
-    }
-
     void HlslToAnyTest(const std::string& name, const Compiler::SourceDesc& source, const Compiler::Options& options,
                        const std::vector<Compiler::TargetDesc>& targets, const std::vector<bool>& expectSuccessFlags)
     {
@@ -642,16 +602,3 @@ namespace
         }
     }
 } // namespace
-
-int main(int argc, char** argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int retVal = RUN_ALL_TESTS();
-    if (retVal != 0)
-    {
-        getchar();
-    }
-
-    return retVal;
-}
