@@ -3,12 +3,17 @@
 
 using namespace metal;
 
-struct type_cbSimulationConstants
+struct Scene
 {
-    float timeStep;
     float wallStiffness;
     float4 gravity;
     float3 planes[4];
+};
+
+struct type_cbSimulationConstants
+{
+    float timeStep;
+    Scene scene;
 };
 
 struct Particle
@@ -43,8 +48,8 @@ kernel void main0(constant type_cbSimulationConstants& cbSimulationConstants [[b
     float2 _54 = particlesRO._m0[gl_GlobalInvocationID.x].velocity;
     float2 _56 = particlesForcesRO._m0[gl_GlobalInvocationID.x].acceleration;
     float3 _59 = float3(_52, 1.0);
-    float _67 = -cbSimulationConstants.wallStiffness;
-    float2 _102 = _54 + ((((((_56 + (cbSimulationConstants.planes[0u].xy * (fast::min(dot(_59, cbSimulationConstants.planes[0u]), 0.0) * _67))) + (cbSimulationConstants.planes[1u].xy * (fast::min(dot(_59, cbSimulationConstants.planes[1u]), 0.0) * _67))) + (cbSimulationConstants.planes[2u].xy * (fast::min(dot(_59, cbSimulationConstants.planes[2u]), 0.0) * _67))) + (cbSimulationConstants.planes[3u].xy * (fast::min(dot(_59, cbSimulationConstants.planes[3u]), 0.0) * _67))) + cbSimulationConstants.gravity.xy) * cbSimulationConstants.timeStep);
+    float _67 = -cbSimulationConstants.scene.wallStiffness;
+    float2 _102 = _54 + ((((((_56 + (cbSimulationConstants.scene.planes[0u].xy * (fast::min(dot(_59, cbSimulationConstants.scene.planes[0u]), 0.0) * _67))) + (cbSimulationConstants.scene.planes[1u].xy * (fast::min(dot(_59, cbSimulationConstants.scene.planes[1u]), 0.0) * _67))) + (cbSimulationConstants.scene.planes[2u].xy * (fast::min(dot(_59, cbSimulationConstants.scene.planes[2u]), 0.0) * _67))) + (cbSimulationConstants.scene.planes[3u].xy * (fast::min(dot(_59, cbSimulationConstants.scene.planes[3u]), 0.0) * _67))) + cbSimulationConstants.scene.gravity.xy) * cbSimulationConstants.timeStep);
     particlesRW._m0[gl_GlobalInvocationID.x].position = _52 + (_102 * cbSimulationConstants.timeStep);
     particlesRW._m0[gl_GlobalInvocationID.x].velocity = _102;
 }

@@ -1,3 +1,10 @@
+struct Scene
+{
+    float wallStiffness;
+    float4 gravity;
+    float3 planes[4];
+};
+
 struct Particle
 {
     float2 position;
@@ -12,9 +19,7 @@ struct ParticleForces
 cbuffer type_cbSimulationConstants : register(b0)
 {
     float cbSimulationConstants_timeStep : packoffset(c0);
-    float cbSimulationConstants_wallStiffness : packoffset(c0.y);
-    float4 cbSimulationConstants_gravity : packoffset(c1);
-    float3 cbSimulationConstants_planes[4] : packoffset(c2);
+    Scene cbSimulationConstants_scene : packoffset(c1);
 };
 
 RWByteAddressBuffer particlesRW : register(u0);
@@ -33,8 +38,8 @@ void comp_main()
     float2 _54 = asfloat(particlesRO.Load2(gl_GlobalInvocationID.x * 16 + 8));
     float2 _56 = asfloat(particlesForcesRO.Load2(gl_GlobalInvocationID.x * 8 + 0));
     float3 _59 = float3(_52, 1.0f);
-    float _67 = -cbSimulationConstants_wallStiffness;
-    float2 _102 = _54 + ((((((_56 + (cbSimulationConstants_planes[0u].xy * (min(dot(_59, cbSimulationConstants_planes[0u]), 0.0f) * _67))) + (cbSimulationConstants_planes[1u].xy * (min(dot(_59, cbSimulationConstants_planes[1u]), 0.0f) * _67))) + (cbSimulationConstants_planes[2u].xy * (min(dot(_59, cbSimulationConstants_planes[2u]), 0.0f) * _67))) + (cbSimulationConstants_planes[3u].xy * (min(dot(_59, cbSimulationConstants_planes[3u]), 0.0f) * _67))) + cbSimulationConstants_gravity.xy) * cbSimulationConstants_timeStep);
+    float _67 = -cbSimulationConstants_scene.wallStiffness;
+    float2 _102 = _54 + ((((((_56 + (cbSimulationConstants_scene.planes[0u].xy * (min(dot(_59, cbSimulationConstants_scene.planes[0u]), 0.0f) * _67))) + (cbSimulationConstants_scene.planes[1u].xy * (min(dot(_59, cbSimulationConstants_scene.planes[1u]), 0.0f) * _67))) + (cbSimulationConstants_scene.planes[2u].xy * (min(dot(_59, cbSimulationConstants_scene.planes[2u]), 0.0f) * _67))) + (cbSimulationConstants_scene.planes[3u].xy * (min(dot(_59, cbSimulationConstants_scene.planes[3u]), 0.0f) * _67))) + cbSimulationConstants_scene.gravity.xy) * cbSimulationConstants_timeStep);
     particlesRW.Store2(gl_GlobalInvocationID.x * 16 + 0, asuint(_52 + (_102 * cbSimulationConstants_timeStep)));
     particlesRW.Store2(gl_GlobalInvocationID.x * 16 + 8, asuint(_102));
 }
