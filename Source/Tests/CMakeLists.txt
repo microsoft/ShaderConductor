@@ -10,6 +10,7 @@ set(HEADER_FILES
 set(SOURCE_FILES
     Common.cpp
     CrossCompileTest.cpp
+    ReflectionTest.cpp
 )
 
 set(DATA_INC_FILES

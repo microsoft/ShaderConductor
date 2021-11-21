@@ -43,10 +43,10 @@
 #include <spirv-tools/libspirv.h>
 #include <spirv.hpp>
 #include <spirv_cross.hpp>
+#include <spirv_cross_util.hpp>
 #include <spirv_glsl.hpp>
 #include <spirv_hlsl.hpp>
 #include <spirv_msl.hpp>
-#include <spirv_cross_util.hpp>
 
 #ifdef LLVM_ON_WIN32
 #include <d3d12shader.h>
@@ -325,103 +325,6 @@ namespace
 
         return result;
     }
-
-    void ShaderReflection(Compiler::ReflectionResultDesc& result, IDxcBlob* dxilBlob)
-    {
-        CComPtr<ID3D12ShaderReflection> shaderReflection;
-        IFT(CreateDxcReflectionFromBlob(dxilBlob, shaderReflection));
-
-        D3D12_SHADER_DESC shaderDesc;
-        shaderReflection->GetDesc(&shaderDesc);
-
-        std::vector<Compiler::ReflectionDesc> vecReflectionDescs;
-        for (uint32_t resourceIndex = 0; resourceIndex < shaderDesc.BoundResources; ++resourceIndex)
-        {
-            D3D12_SHADER_INPUT_BIND_DESC bindDesc;
-            shaderReflection->GetResourceBindingDesc(resourceIndex, &bindDesc);
-
-            Compiler::ReflectionDesc reflectionDesc{};
-
-            if (bindDesc.Type == D3D_SIT_CBUFFER || bindDesc.Type == D3D_SIT_TBUFFER)
-            {
-                ID3D12ShaderReflectionConstantBuffer* constantBuffer = shaderReflection->GetConstantBufferByName(bindDesc.Name);
-
-                D3D12_SHADER_BUFFER_DESC bufferDesc;
-                constantBuffer->GetDesc(&bufferDesc);
-
-                if (strcmp(bufferDesc.Name, "$Globals") == 0)
-                {
-                    for (uint32_t variableIndex = 0; variableIndex < bufferDesc.Variables; ++variableIndex)
-                    {
-                        ID3D12ShaderReflectionVariable* variable = constantBuffer->GetVariableByIndex(variableIndex);
-                        D3D12_SHADER_VARIABLE_DESC variableDesc;
-                        variable->GetDesc(&variableDesc);
-
-                        std::strncpy(reflectionDesc.name, variableDesc.Name,
-                                     std::min(std::strlen(variableDesc.Name) + 1, sizeof(reflectionDesc.name)));
-
-                        reflectionDesc.type = ShaderResourceType::Parameter;
-                        reflectionDesc.bufferBindPoint = bindDesc.BindPoint;
-                        reflectionDesc.bindPoint = variableDesc.StartOffset;
-                        reflectionDesc.bindCount = variableDesc.Size;
-                    }
-                }
-                else
-                {
-                    std::strncpy(reflectionDesc.name, bufferDesc.Name,
-                                 std::min(std::strlen(bufferDesc.Name) + 1, sizeof(reflectionDesc.name)));
-
-                    reflectionDesc.type = ShaderResourceType::ConstantBuffer;
-                    reflectionDesc.bufferBindPoint = bindDesc.BindPoint;
-                    reflectionDesc.bindPoint = 0;
-                    reflectionDesc.bindCount = 0;
-                }
-            }
-            else
-            {
-                switch (bindDesc.Type)
-                {
-                case D3D_SIT_TEXTURE:
-                    reflectionDesc.type = ShaderResourceType::Texture;
-                    break;
-
-                case D3D_SIT_SAMPLER:
-                    reflectionDesc.type = ShaderResourceType::Sampler;
-                    break;
-
-                case D3D_SIT_STRUCTURED:
-                case D3D_SIT_BYTEADDRESS:
-                    reflectionDesc.type = ShaderResourceType::ShaderResourceView;
-                    break;
-
-                case D3D_SIT_UAV_RWTYPED:
-                case D3D_SIT_UAV_RWSTRUCTURED:
-                case D3D_SIT_UAV_RWBYTEADDRESS:
-                case D3D_SIT_UAV_APPEND_STRUCTURED:
-                case D3D_SIT_UAV_CONSUME_STRUCTURED:
-                case D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER:
-                    reflectionDesc.type = ShaderResourceType::UnorderedAccessView;
-                    break;
-
-                default:
-                    llvm_unreachable("Unknown bind type.");
-                    break;
-                }
-
-                std::strncpy(reflectionDesc.name, bindDesc.Name, std::min(std::strlen(bindDesc.Name) + 1, sizeof(reflectionDesc.name)));
-
-                reflectionDesc.bufferBindPoint = 0;
-                reflectionDesc.bindPoint = bindDesc.BindPoint;
-                reflectionDesc.bindCount = bindDesc.BindCount;
-            }
-
-            vecReflectionDescs.push_back(reflectionDesc);
-        }
-
-        result.descCount = static_cast<uint32_t>(vecReflectionDescs.size());
-        result.descs.Reset(vecReflectionDescs.data(), sizeof(Compiler::ReflectionDesc) * result.descCount);
-        result.instructionCount = shaderDesc.InstructionCount;
-    }
 #endif
 
     std::wstring ShaderProfileName(ShaderStage stage, Compiler::ShaderModel shaderModel)
@@ -465,7 +368,12 @@ namespace
         return shaderProfile;
     }
 
-    void ConvertDxcResult(Compiler::ResultDesc& result, IDxcOperationResult* dxcResult, ShadingLanguage targetLanguage, bool asModule)
+#ifdef LLVM_ON_WIN32
+    Reflection MakeDxilReflection(IDxcBlob* dxilBlob);
+#endif
+
+    void ConvertDxcResult(Compiler::ResultDesc& result, IDxcOperationResult* dxcResult, ShadingLanguage targetLanguage, bool asModule,
+                          bool needReflection)
     {
         HRESULT status;
         IFT(dxcResult->GetStatus(&status));
@@ -493,16 +401,19 @@ namespace
                 result.hasError = false;
             }
 
-#ifdef LLVM_ON_WIN32
-            if ((targetLanguage == ShadingLanguage::Dxil) && !asModule)
+            if (needReflection)
             {
-                // Gather reflection information only for ShadingLanguage::Dxil
-                ShaderReflection(result.reflection, program);
-            }
+#ifdef LLVM_ON_WIN32
+                if ((targetLanguage == ShadingLanguage::Dxil) && !asModule)
+                {
+                    // Gather reflection information only for ShadingLanguage::Dxil
+                    result.reflection = MakeDxilReflection(program);
+                }
 #else
-            SC_UNUSED(targetLanguage);
-            SC_UNUSED(asModule);
+                SC_UNUSED(targetLanguage);
+                SC_UNUSED(asModule);
 #endif
+            }
         }
     }
 
@@ -675,7 +586,7 @@ namespace
                                                        static_cast<UINT32>(dxcDefines.size()), includeHandler, &compileResult));
 
         Compiler::ResultDesc ret{};
-        ConvertDxcResult(ret, compileResult, targetLanguage, asModule);
+        ConvertDxcResult(ret, compileResult, targetLanguage, asModule, options.needReflection);
 
         return ret;
     }
@@ -927,10 +838,7 @@ namespace
             const std::string targetStr = compiler->compile();
             ret.target.Reset(targetStr.data(), static_cast<uint32_t>(targetStr.size()));
             ret.hasError = false;
-            ret.reflection.descs.Reset(binaryResult.reflection.descs.Data(),
-                                       sizeof(Compiler::ReflectionDesc) * binaryResult.reflection.descCount);
-            ret.reflection.descCount = binaryResult.reflection.descCount;
-            ret.reflection.instructionCount = binaryResult.reflection.instructionCount;
+            ret.reflection = std::move(binaryResult.reflection);
         }
         catch (spirv_cross::CompilerError& error)
         {
@@ -1038,6 +946,7 @@ namespace ShaderConductor
     {
         if (this != &other)
         {
+            delete m_impl;
             m_impl = std::move(other.m_impl);
             other.m_impl = nullptr;
         }
@@ -1067,6 +976,1275 @@ namespace ShaderConductor
     uint32_t Blob::Size() const noexcept
     {
         return m_impl ? m_impl->Size() : 0;
+    }
+
+
+    class Reflection::VariableType::VariableTypeImpl
+    {
+    public:
+#ifdef LLVM_ON_WIN32
+        explicit VariableTypeImpl(ID3D12ShaderReflectionType* d3d12Type)
+        {
+            D3D12_SHADER_TYPE_DESC d3d12ShaderTypeDesc;
+            d3d12Type->GetDesc(&d3d12ShaderTypeDesc);
+
+            if (d3d12ShaderTypeDesc.Name)
+            {
+                m_name = d3d12ShaderTypeDesc.Name;
+            }
+
+            switch (d3d12ShaderTypeDesc.Type)
+            {
+            case D3D_SVT_BOOL:
+                m_type = DataType::Bool;
+                break;
+            case D3D_SVT_INT:
+                m_type = DataType::Int;
+                break;
+            case D3D_SVT_UINT:
+                m_type = DataType::Uint;
+                break;
+            case D3D_SVT_FLOAT:
+                m_type = DataType::Float;
+                break;
+
+            case D3D_SVT_MIN16FLOAT:
+                m_type = DataType::Half;
+                break;
+            case D3D_SVT_MIN16INT:
+                m_type = DataType::Int16;
+                break;
+            case D3D_SVT_MIN16UINT:
+                m_type = DataType::Uint16;
+                break;
+
+            case D3D_SVT_VOID:
+                if (d3d12ShaderTypeDesc.Class == D3D_SVC_STRUCT)
+                {
+                    m_type = DataType::Struct;
+
+                    for (uint32_t memberIndex = 0; memberIndex < d3d12ShaderTypeDesc.Members; ++memberIndex)
+                    {
+                        VariableDesc member{};
+
+                        const char* memberName = d3d12Type->GetMemberTypeName(memberIndex);
+                        std::strncpy(member.name, memberName, sizeof(member.name));
+
+                        ID3D12ShaderReflectionType* d3d12MemberType = d3d12Type->GetMemberTypeByIndex(memberIndex);
+                        member.type = Make(d3d12MemberType);
+
+                        D3D12_SHADER_TYPE_DESC d3d12MemberTypeDesc;
+                        d3d12MemberType->GetDesc(&d3d12MemberTypeDesc);
+
+                        member.offset = d3d12MemberTypeDesc.Offset;
+                        if (d3d12MemberTypeDesc.Elements == 0)
+                        {
+                            member.size = 0;
+                        }
+                        else
+                        {
+                            member.size = (member.type.Elements() - 1) * member.type.ElementStride();
+                        }
+                        member.size += member.type.Rows() * member.type.Columns() * 4;
+
+                        m_members.emplace_back(std::move(member));
+                    }
+                }
+                else
+                {
+                    m_type = DataType::Void;
+                }
+                break;
+
+            default:
+                llvm_unreachable("Unsupported variable type.");
+            }
+
+            m_rows = d3d12ShaderTypeDesc.Rows;
+            m_columns = d3d12ShaderTypeDesc.Columns;
+            m_elements = d3d12ShaderTypeDesc.Elements;
+
+            if (m_elements > 0)
+            {
+                m_elementStride = m_rows * 16;
+            }
+            else
+            {
+                m_elementStride = 0;
+            }
+        }
+#endif
+
+        const char* Name() const noexcept
+        {
+            return m_name.c_str();
+        }
+
+        DataType Type() const noexcept
+        {
+            return m_type;
+        }
+
+        uint32_t Rows() const noexcept
+        {
+            return m_rows;
+        }
+
+        uint32_t Columns() const noexcept
+        {
+            return m_columns;
+        }
+
+        uint32_t Elements() const noexcept
+        {
+            return m_elements;
+        }
+
+        uint32_t ElementStride() const noexcept
+        {
+            return m_elementStride;
+        }
+
+        uint32_t NumMembers() const noexcept
+        {
+            return static_cast<uint32_t>(m_members.size());
+        }
+
+        const VariableDesc* MemberByIndex(uint32_t index) const noexcept
+        {
+            if (index < m_members.size())
+            {
+                return &m_members[index];
+            }
+
+            return nullptr;
+        }
+
+        const VariableDesc* MemberByName(const char* name) const noexcept
+        {
+            for (const auto& member : m_members)
+            {
+                if (std::strcmp(member.name, name) == 0)
+                {
+                    return &member;
+                }
+            }
+
+            return nullptr;
+        }
+
+#ifdef LLVM_ON_WIN32
+        static VariableType Make(ID3D12ShaderReflectionType* d3d12ReflectionType)
+        {
+            VariableType ret;
+            ret.m_impl = new VariableTypeImpl(d3d12ReflectionType);
+            return ret;
+        }
+#endif
+
+    private:
+        std::string m_name;
+        DataType m_type;
+        uint32_t m_rows;
+        uint32_t m_columns;
+        uint32_t m_elements;
+        uint32_t m_elementStride;
+
+        std::vector<VariableDesc> m_members;
+    };
+
+    Reflection::VariableType::VariableType() noexcept = default;
+
+    Reflection::VariableType::VariableType(const VariableType& other) : m_impl(other.m_impl ? new VariableTypeImpl(*other.m_impl) : nullptr)
+    {
+    }
+
+    Reflection::VariableType::VariableType(VariableType&& other) noexcept : m_impl(std::move(other.m_impl))
+    {
+        other.m_impl = nullptr;
+    }
+
+    Reflection::VariableType::~VariableType() noexcept
+    {
+        delete m_impl;
+    }
+
+    Reflection::VariableType& Reflection::VariableType::operator=(const VariableType& other)
+    {
+        if (this != &other)
+        {
+            delete m_impl;
+            m_impl = nullptr;
+
+            if (other.m_impl)
+            {
+                m_impl = new VariableTypeImpl(*other.m_impl);
+            }
+        }
+        return *this;
+    }
+
+    Reflection::VariableType& Reflection::VariableType::operator=(VariableType&& other) noexcept
+    {
+        if (this != &other)
+        {
+            delete m_impl;
+            m_impl = std::move(other.m_impl);
+            other.m_impl = nullptr;
+        }
+        return *this;
+    }
+
+    bool Reflection::VariableType::Valid() const noexcept
+    {
+        return m_impl != nullptr;
+    }
+
+    const char* Reflection::VariableType::Name() const noexcept
+    {
+        return m_impl->Name();
+    }
+
+    Reflection::VariableType::DataType Reflection::VariableType::Type() const noexcept
+    {
+        return m_impl->Type();
+    }
+
+    uint32_t Reflection::VariableType::Rows() const noexcept
+    {
+        return m_impl->Rows();
+    }
+
+    uint32_t Reflection::VariableType::Columns() const noexcept
+    {
+        return m_impl->Columns();
+    }
+
+    uint32_t Reflection::VariableType::Elements() const noexcept
+    {
+        return m_impl->Elements();
+    }
+
+    uint32_t Reflection::VariableType::ElementStride() const noexcept
+    {
+        return m_impl->ElementStride();
+    }
+
+    uint32_t Reflection::VariableType::NumMembers() const noexcept
+    {
+        return m_impl->NumMembers();
+    }
+
+    const Reflection::VariableDesc* Reflection::VariableType::MemberByIndex(uint32_t index) const noexcept
+    {
+        return m_impl->MemberByIndex(index);
+    }
+
+    const Reflection::VariableDesc* Reflection::VariableType::MemberByName(const char* name) const noexcept
+    {
+        return m_impl->MemberByName(name);
+    }
+
+
+    class Reflection::ConstantBuffer::ConstantBufferImpl
+    {
+    public:
+#ifdef LLVM_ON_WIN32
+        explicit ConstantBufferImpl(ID3D12ShaderReflectionConstantBuffer* constantBuffer)
+        {
+            D3D12_SHADER_BUFFER_DESC bufferDesc;
+            constantBuffer->GetDesc(&bufferDesc);
+
+            m_name = bufferDesc.Name;
+
+            for (uint32_t variableIndex = 0; variableIndex < bufferDesc.Variables; ++variableIndex)
+            {
+                ID3D12ShaderReflectionVariable* variable = constantBuffer->GetVariableByIndex(variableIndex);
+                D3D12_SHADER_VARIABLE_DESC d3d12VariableDesc;
+                variable->GetDesc(&d3d12VariableDesc);
+
+                VariableDesc variableDesc{};
+
+                std::strncpy(variableDesc.name, d3d12VariableDesc.Name, sizeof(variableDesc.name));
+
+                variableDesc.type = VariableType::VariableTypeImpl::Make(variable->GetType());
+
+                variableDesc.offset = d3d12VariableDesc.StartOffset;
+                variableDesc.size = d3d12VariableDesc.Size;
+
+                m_variableDescs.emplace_back(std::move(variableDesc));
+            }
+
+            m_size = bufferDesc.Size;
+        }
+#endif
+
+        const char* Name() const noexcept
+        {
+            return m_name.c_str();
+        }
+
+        uint32_t Size() const noexcept
+        {
+            return m_size;
+        }
+
+        uint32_t NumVariables() const noexcept
+        {
+            return static_cast<uint32_t>(m_variableDescs.size());
+        }
+
+        const VariableDesc* VariableByIndex(uint32_t index) const noexcept
+        {
+            if (index < m_variableDescs.size())
+            {
+                return &m_variableDescs[index];
+            }
+
+            return nullptr;
+        }
+
+        const VariableDesc* VariableByName(const char* name) const noexcept
+        {
+            for (const auto& variableDesc : m_variableDescs)
+            {
+                if (std::strcmp(variableDesc.name, name) == 0)
+                {
+                    return &variableDesc;
+                }
+            }
+
+            return nullptr;
+        }
+
+#ifdef LLVM_ON_WIN32
+        static ConstantBuffer Make(ID3D12ShaderReflectionConstantBuffer* constantBuffer)
+        {
+            ConstantBuffer ret;
+            ret.m_impl = new ConstantBufferImpl(constantBuffer);
+            return ret;
+        }
+#endif
+
+    private:
+        std::string m_name;
+        uint32_t m_size;
+        std::vector<VariableDesc> m_variableDescs;
+    };
+
+    Reflection::ConstantBuffer::ConstantBuffer() noexcept = default;
+
+    Reflection::ConstantBuffer::ConstantBuffer(const ConstantBuffer& other)
+        : m_impl(other.m_impl ? new ConstantBufferImpl(*other.m_impl) : nullptr)
+    {
+    }
+
+    Reflection::ConstantBuffer::ConstantBuffer(ConstantBuffer&& other) noexcept : m_impl(std::move(other.m_impl))
+    {
+        other.m_impl = nullptr;
+    }
+
+    Reflection::ConstantBuffer::~ConstantBuffer() noexcept
+    {
+        delete m_impl;
+    }
+
+    Reflection::ConstantBuffer& Reflection::ConstantBuffer::operator=(const ConstantBuffer& other)
+    {
+        if (this != &other)
+        {
+            delete m_impl;
+            m_impl = nullptr;
+
+            if (other.m_impl)
+            {
+                m_impl = new ConstantBufferImpl(*other.m_impl);
+            }
+        }
+        return *this;
+    }
+
+    Reflection::ConstantBuffer& Reflection::ConstantBuffer::operator=(ConstantBuffer&& other) noexcept
+    {
+        if (this != &other)
+        {
+            delete m_impl;
+            m_impl = std::move(other.m_impl);
+            other.m_impl = nullptr;
+        }
+        return *this;
+    }
+
+    bool Reflection::ConstantBuffer::Valid() const noexcept
+    {
+        return m_impl != nullptr;
+    }
+
+    const char* Reflection::ConstantBuffer::Name() const noexcept
+    {
+        return m_impl->Name();
+    }
+
+    uint32_t Reflection::ConstantBuffer::Size() const noexcept
+    {
+        return m_impl->Size();
+    }
+
+    uint32_t Reflection::ConstantBuffer::NumVariables() const noexcept
+    {
+        return m_impl->NumVariables();
+    }
+
+    const Reflection::VariableDesc* Reflection::ConstantBuffer::VariableByIndex(uint32_t index) const noexcept
+    {
+        return m_impl->VariableByIndex(index);
+    }
+
+    const Reflection::VariableDesc* Reflection::ConstantBuffer::VariableByName(const char* name) const noexcept
+    {
+        return m_impl->VariableByName(name);
+    }
+
+
+    class Reflection::ReflectionImpl
+    {
+    public:
+#ifdef LLVM_ON_WIN32
+        explicit ReflectionImpl(IDxcBlob* dxilBlob)
+        {
+            CComPtr<ID3D12ShaderReflection> shaderReflection;
+            IFT(CreateDxcReflectionFromBlob(dxilBlob, shaderReflection));
+
+            D3D12_SHADER_DESC shaderDesc;
+            shaderReflection->GetDesc(&shaderDesc);
+
+            for (uint32_t resourceIndex = 0; resourceIndex < shaderDesc.BoundResources; ++resourceIndex)
+            {
+                D3D12_SHADER_INPUT_BIND_DESC bindDesc;
+                shaderReflection->GetResourceBindingDesc(resourceIndex, &bindDesc);
+
+                ResourceDesc reflectionDesc{};
+
+                std::strncpy(reflectionDesc.name, bindDesc.Name, sizeof(reflectionDesc.name));
+                reflectionDesc.space = bindDesc.Space;
+                reflectionDesc.bindPoint = bindDesc.BindPoint;
+                reflectionDesc.bindCount = bindDesc.BindCount;
+
+                if (bindDesc.Type == D3D_SIT_CBUFFER || bindDesc.Type == D3D_SIT_TBUFFER)
+                {
+                    reflectionDesc.type = ShaderResourceType::ConstantBuffer;
+
+                    ID3D12ShaderReflectionConstantBuffer* constantBuffer = shaderReflection->GetConstantBufferByName(bindDesc.Name);
+                    m_constantBuffers.emplace_back(ConstantBuffer::ConstantBufferImpl::Make(constantBuffer));
+                }
+                else
+                {
+                    switch (bindDesc.Type)
+                    {
+                    case D3D_SIT_TEXTURE:
+                        reflectionDesc.type = ShaderResourceType::Texture;
+                        break;
+
+                    case D3D_SIT_SAMPLER:
+                        reflectionDesc.type = ShaderResourceType::Sampler;
+                        break;
+
+                    case D3D_SIT_STRUCTURED:
+                    case D3D_SIT_BYTEADDRESS:
+                        reflectionDesc.type = ShaderResourceType::ShaderResourceView;
+                        break;
+
+                    case D3D_SIT_UAV_RWTYPED:
+                    case D3D_SIT_UAV_RWSTRUCTURED:
+                    case D3D_SIT_UAV_RWBYTEADDRESS:
+                    case D3D_SIT_UAV_APPEND_STRUCTURED:
+                    case D3D_SIT_UAV_CONSUME_STRUCTURED:
+                    case D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER:
+                        reflectionDesc.type = ShaderResourceType::UnorderedAccessView;
+                        break;
+
+                    default:
+                        llvm_unreachable("Unknown bind type.");
+                        break;
+                    }
+                }
+
+                m_resourceDescs.emplace_back(std::move(reflectionDesc));
+            }
+
+            for (uint32_t inputParamIndex = 0; inputParamIndex < shaderDesc.InputParameters; ++inputParamIndex)
+            {
+                SignatureParameterDesc paramDesc{};
+
+                D3D12_SIGNATURE_PARAMETER_DESC signatureParamDesc;
+                shaderReflection->GetInputParameterDesc(inputParamIndex, &signatureParamDesc);
+
+                std::strncpy(paramDesc.semantic, signatureParamDesc.SemanticName, sizeof(paramDesc.semantic));
+                paramDesc.semanticIndex = signatureParamDesc.SemanticIndex;
+                paramDesc.location = signatureParamDesc.Register;
+                switch (signatureParamDesc.ComponentType)
+                {
+                case D3D_REGISTER_COMPONENT_UINT32:
+                    paramDesc.componentType = VariableType::DataType::Uint;
+                    break;
+                case D3D_REGISTER_COMPONENT_SINT32:
+                    paramDesc.componentType = VariableType::DataType::Int;
+                    break;
+                case D3D_REGISTER_COMPONENT_FLOAT32:
+                    paramDesc.componentType = VariableType::DataType::Float;
+                    break;
+
+                default:
+                    llvm_unreachable("Unsupported input component type.");
+                    break;
+                }
+                paramDesc.mask = static_cast<ComponentMask>(signatureParamDesc.Mask);
+
+                m_inputParams.emplace_back(std::move(paramDesc));
+            }
+
+            for (uint32_t outputParamIndex = 0; outputParamIndex < shaderDesc.OutputParameters; ++outputParamIndex)
+            {
+                SignatureParameterDesc paramDesc{};
+
+                D3D12_SIGNATURE_PARAMETER_DESC signatureParamDesc;
+                shaderReflection->GetOutputParameterDesc(outputParamIndex, &signatureParamDesc);
+
+                std::strncpy(paramDesc.semantic, signatureParamDesc.SemanticName, sizeof(paramDesc.semantic));
+                paramDesc.semanticIndex = signatureParamDesc.SemanticIndex;
+                paramDesc.location = signatureParamDesc.Register;
+                switch (signatureParamDesc.ComponentType)
+                {
+                case D3D_REGISTER_COMPONENT_UINT32:
+                    paramDesc.componentType = VariableType::DataType::Uint;
+                    break;
+                case D3D_REGISTER_COMPONENT_SINT32:
+                    paramDesc.componentType = VariableType::DataType::Int;
+                    break;
+                case D3D_REGISTER_COMPONENT_FLOAT32:
+                    paramDesc.componentType = VariableType::DataType::Float;
+                    break;
+
+                default:
+                    llvm_unreachable("Unsupported output component type.");
+                    break;
+                }
+                paramDesc.mask = static_cast<ComponentMask>(signatureParamDesc.Mask);
+
+                m_outputParams.emplace_back(std::move(paramDesc));
+            }
+
+            switch (shaderDesc.InputPrimitive)
+            {
+            case D3D_PRIMITIVE_UNDEFINED:
+                m_gsHSInputPrimitive = PrimitiveTopology::Undefined;
+                break;
+            case D3D_PRIMITIVE_POINT:
+                m_gsHSInputPrimitive = PrimitiveTopology::Points;
+                break;
+            case D3D_PRIMITIVE_LINE:
+                m_gsHSInputPrimitive = PrimitiveTopology::Lines;
+                break;
+            case D3D_PRIMITIVE_TRIANGLE:
+                m_gsHSInputPrimitive = PrimitiveTopology::Triangles;
+                break;
+            case D3D_PRIMITIVE_LINE_ADJ:
+                m_gsHSInputPrimitive = PrimitiveTopology::LinesAdj;
+                break;
+            case D3D_PRIMITIVE_TRIANGLE_ADJ:
+                m_gsHSInputPrimitive = PrimitiveTopology::TrianglesAdj;
+                break;
+            case D3D_PRIMITIVE_1_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_1_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_2_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_2_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_3_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_3_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_4_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_4_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_5_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_5_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_6_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_6_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_7_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_7_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_8_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_8_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_9_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_9_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_10_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_10_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_11_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_11_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_12_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_12_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_13_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_13_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_14_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_14_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_15_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_15_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_16_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_16_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_17_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_17_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_18_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_18_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_19_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_19_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_20_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_20_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_21_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_21_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_22_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_22_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_23_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_23_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_24_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_24_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_25_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_25_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_26_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_26_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_27_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_27_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_28_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_28_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_29_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_29_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_30_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_30_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_31_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_31_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_32_CONTROL_POINT_PATCH:
+                m_gsHSInputPrimitive = PrimitiveTopology::Patches_32_CtrlPoint;
+                break;
+
+            default:
+                llvm_unreachable("Unsupported input primitive type.");
+                break;
+            }
+
+            switch (shaderDesc.GSOutputTopology)
+            {
+            case D3D_PRIMITIVE_TOPOLOGY_UNDEFINED:
+                m_gsOutputTopology = PrimitiveTopology::Undefined;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_POINTLIST:
+                m_gsOutputTopology = PrimitiveTopology::Points;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_LINELIST:
+                m_gsOutputTopology = PrimitiveTopology::Lines;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_LINESTRIP:
+                m_gsOutputTopology = PrimitiveTopology::LineStrip;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST:
+                m_gsOutputTopology = PrimitiveTopology::Triangles;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP:
+                m_gsOutputTopology = PrimitiveTopology::TriangleStrip;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ:
+                m_gsOutputTopology = PrimitiveTopology::LinesAdj;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_LINESTRIP_ADJ:
+                m_gsOutputTopology = PrimitiveTopology::LineStripAdj;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST_ADJ:
+                m_gsOutputTopology = PrimitiveTopology::TrianglesAdj;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP_ADJ:
+                m_gsOutputTopology = PrimitiveTopology::TriangleStripAdj;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_1_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_2_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_2_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_3_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_4_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_5_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_5_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_6_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_6_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_7_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_7_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_8_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_8_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_9_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_9_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_10_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_10_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_11_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_11_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_12_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_12_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_13_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_13_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_14_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_14_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_15_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_15_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_16_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_16_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_17_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_17_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_18_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_18_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_19_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_19_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_20_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_20_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_21_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_21_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_22_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_22_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_23_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_23_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_24_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_24_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_25_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_25_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_26_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_26_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_27_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_27_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_28_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_28_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_29_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_29_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_30_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_30_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_31_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_31_CtrlPoint;
+                break;
+            case D3D_PRIMITIVE_TOPOLOGY_32_CONTROL_POINT_PATCHLIST:
+                m_gsOutputTopology = PrimitiveTopology::Patches_32_CtrlPoint;
+                break;
+
+            default:
+                llvm_unreachable("Unsupported output topoloty type.");
+                break;
+            }
+
+            m_gsMaxNumOutputVertices = shaderDesc.GSMaxOutputVertexCount;
+            m_gsNumInstances = shaderDesc.cGSInstanceCount;
+
+            switch (shaderDesc.HSOutputPrimitive)
+            {
+            case D3D_TESSELLATOR_OUTPUT_UNDEFINED:
+                m_hsOutputPrimitive = TessellatorOutputPrimitive::Undefined;
+                break;
+            case D3D_TESSELLATOR_OUTPUT_POINT:
+                m_hsOutputPrimitive = TessellatorOutputPrimitive::Point;
+                break;
+            case D3D_TESSELLATOR_OUTPUT_LINE:
+                m_hsOutputPrimitive = TessellatorOutputPrimitive::Line;
+                break;
+            case D3D_TESSELLATOR_OUTPUT_TRIANGLE_CW:
+                m_hsOutputPrimitive = TessellatorOutputPrimitive::TriangleCW;
+                break;
+            case D3D_TESSELLATOR_OUTPUT_TRIANGLE_CCW:
+                m_hsOutputPrimitive = TessellatorOutputPrimitive::TriangleCCW;
+                break;
+
+            default:
+                llvm_unreachable("Unsupported output primitive type.");
+                break;
+            }
+
+            switch (shaderDesc.HSPartitioning)
+            {
+            case D3D_TESSELLATOR_PARTITIONING_UNDEFINED:
+                m_hsPartitioning = TessellatorPartitioning::Undefined;
+                break;
+            case D3D_TESSELLATOR_PARTITIONING_INTEGER:
+                m_hsPartitioning = TessellatorPartitioning::Integer;
+                break;
+            case D3D_TESSELLATOR_PARTITIONING_POW2:
+                m_hsPartitioning = TessellatorPartitioning::Pow2;
+                break;
+            case D3D_TESSELLATOR_PARTITIONING_FRACTIONAL_ODD:
+                m_hsPartitioning = TessellatorPartitioning::FractionalOdd;
+                break;
+            case D3D_TESSELLATOR_PARTITIONING_FRACTIONAL_EVEN:
+                m_hsPartitioning = TessellatorPartitioning::FractionalEven;
+                break;
+
+            default:
+                llvm_unreachable("Unsupported partitioning type.");
+                break;
+            }
+
+            switch (shaderDesc.TessellatorDomain)
+            {
+            case D3D_TESSELLATOR_DOMAIN_UNDEFINED:
+                m_hSDSTessellatorDomain = TessellatorDomain::Undefined;
+                break;
+            case D3D_TESSELLATOR_DOMAIN_ISOLINE:
+                m_hSDSTessellatorDomain = TessellatorDomain::Line;
+                break;
+            case D3D_TESSELLATOR_DOMAIN_TRI:
+                m_hSDSTessellatorDomain = TessellatorDomain::Triangle;
+                break;
+            case D3D_TESSELLATOR_DOMAIN_QUAD:
+                m_hSDSTessellatorDomain = TessellatorDomain::Quad;
+                break;
+
+            default:
+                llvm_unreachable("Unsupported tessellator domain type.");
+                break;
+            }
+
+            for (uint32_t patchConstantParamIndex = 0; patchConstantParamIndex < shaderDesc.PatchConstantParameters;
+                 ++patchConstantParamIndex)
+            {
+                SignatureParameterDesc paramDesc{};
+
+                D3D12_SIGNATURE_PARAMETER_DESC signatureParamDesc;
+                shaderReflection->GetPatchConstantParameterDesc(patchConstantParamIndex, &signatureParamDesc);
+
+                std::strncpy(paramDesc.semantic, signatureParamDesc.SemanticName, sizeof(paramDesc.semantic));
+                paramDesc.semanticIndex = signatureParamDesc.SemanticIndex;
+                paramDesc.location = signatureParamDesc.Register;
+                switch (signatureParamDesc.ComponentType)
+                {
+                case D3D_REGISTER_COMPONENT_UINT32:
+                    paramDesc.componentType = VariableType::DataType::Uint;
+                    break;
+                case D3D_REGISTER_COMPONENT_SINT32:
+                    paramDesc.componentType = VariableType::DataType::Int;
+                    break;
+                case D3D_REGISTER_COMPONENT_FLOAT32:
+                    paramDesc.componentType = VariableType::DataType::Float;
+                    break;
+
+                default:
+                    llvm_unreachable("Unsupported patch constant component type.");
+                    break;
+                }
+                paramDesc.mask = static_cast<ComponentMask>(signatureParamDesc.Mask);
+
+                m_hsDSPatchConstantParams.emplace_back(std::move(paramDesc));
+            }
+
+            m_hsDSNumCtrlPoints = shaderDesc.cControlPoints;
+
+            shaderReflection->GetThreadGroupSize(&m_csBlockSizeX, &m_csBlockSizeY, &m_csBlockSizeZ);
+        }
+#endif
+
+        uint32_t NumResources() const noexcept
+        {
+            return static_cast<uint32_t>(m_resourceDescs.size());
+        }
+
+        const ResourceDesc* ResourceByIndex(uint32_t index) const noexcept
+        {
+            if (index < m_resourceDescs.size())
+            {
+                return &m_resourceDescs[index];
+            }
+
+            return nullptr;
+        }
+
+        const ResourceDesc* ResourceByName(const char* name) const noexcept
+        {
+            for (const auto& resourceDesc : m_resourceDescs)
+            {
+                if (std::strcmp(resourceDesc.name, name) == 0)
+                {
+                    return &resourceDesc;
+                }
+            }
+
+            return nullptr;
+        }
+
+        uint32_t NumConstantBuffers() const noexcept
+        {
+            return static_cast<uint32_t>(m_constantBuffers.size());
+        }
+
+        const ConstantBuffer* ConstantBufferByIndex(uint32_t index) const noexcept
+        {
+            if (index < m_resourceDescs.size())
+            {
+                return &m_constantBuffers[index];
+            }
+
+            return nullptr;
+        }
+
+        const ConstantBuffer* ConstantBufferByName(const char* name) const noexcept
+        {
+            for (const auto& cbuffer : m_constantBuffers)
+            {
+                if (std::strcmp(cbuffer.Name(), name) == 0)
+                {
+                    return &cbuffer;
+                }
+            }
+
+            return nullptr;
+        }
+
+        uint32_t NumInputParameters() const noexcept
+        {
+            return static_cast<uint32_t>(m_inputParams.size());
+        }
+
+        const SignatureParameterDesc* InputParameter(uint32_t index) const noexcept
+        {
+            if (index < m_inputParams.size())
+            {
+                return &m_inputParams[index];
+            }
+
+            return nullptr;
+        }
+
+        uint32_t NumOutputParameters() const noexcept
+        {
+            return static_cast<uint32_t>(m_outputParams.size());
+        }
+
+        const SignatureParameterDesc* OutputParameter(uint32_t index) const noexcept
+        {
+            if (index < m_outputParams.size())
+            {
+                return &m_outputParams[index];
+            }
+
+            return nullptr;
+        }
+
+        PrimitiveTopology GSHSInputPrimitive() const noexcept
+        {
+            return m_gsHSInputPrimitive;
+        }
+
+        PrimitiveTopology GSOutputTopology() const noexcept
+        {
+            return m_gsOutputTopology;
+        }
+
+        uint32_t GSMaxNumOutputVertices() const noexcept
+        {
+            return m_gsMaxNumOutputVertices;
+        }
+
+        uint32_t GSNumInstances() const noexcept
+        {
+            return m_gsNumInstances;
+        }
+
+        TessellatorOutputPrimitive HSOutputPrimitive() const noexcept
+        {
+            return m_hsOutputPrimitive;
+        }
+
+        TessellatorPartitioning HSPartitioning() const noexcept
+        {
+            return m_hsPartitioning;
+        }
+
+        TessellatorDomain HSDSTessellatorDomain() const noexcept
+        {
+            return m_hSDSTessellatorDomain;
+        }
+
+        uint32_t HSDSNumPatchConstantParameters() const noexcept
+        {
+            return static_cast<uint32_t>(m_hsDSPatchConstantParams.size());
+        }
+
+        const SignatureParameterDesc* HSDSPatchConstantParameter(uint32_t index) const noexcept
+        {
+            if (index < m_hsDSPatchConstantParams.size())
+            {
+                return &m_hsDSPatchConstantParams[index];
+            }
+
+            return nullptr;
+        }
+
+        uint32_t HSDSNumConrolPoints() const noexcept
+        {
+            return m_hsDSNumCtrlPoints;
+        }
+
+        uint32_t CSBlockSizeX() const noexcept
+        {
+            return m_csBlockSizeX;
+        }
+
+        uint32_t CSBlockSizeY() const noexcept
+        {
+            return m_csBlockSizeY;
+        }
+
+        uint32_t CSBlockSizeZ() const noexcept
+        {
+            return m_csBlockSizeZ;
+        }
+
+#ifdef LLVM_ON_WIN32
+        static Reflection Make(IDxcBlob* dxilBlob)
+        {
+            Reflection ret;
+            ret.m_impl = new ReflectionImpl(dxilBlob);
+            return ret;
+        }
+#endif
+
+    private:
+        std::vector<ResourceDesc> m_resourceDescs;
+        std::vector<ConstantBuffer> m_constantBuffers;
+
+        std::vector<SignatureParameterDesc> m_inputParams;
+        std::vector<SignatureParameterDesc> m_outputParams;
+
+        PrimitiveTopology m_gsHSInputPrimitive;
+        PrimitiveTopology m_gsOutputTopology;
+        uint32_t m_gsMaxNumOutputVertices;
+        uint32_t m_gsNumInstances;
+
+        TessellatorOutputPrimitive m_hsOutputPrimitive;
+        TessellatorPartitioning m_hsPartitioning;
+        TessellatorDomain m_hSDSTessellatorDomain;
+        std::vector<SignatureParameterDesc> m_hsDSPatchConstantParams;
+        uint32_t m_hsDSNumCtrlPoints;
+
+        uint32_t m_csBlockSizeX;
+        uint32_t m_csBlockSizeY;
+        uint32_t m_csBlockSizeZ;
+    };
+
+    Reflection::Reflection() noexcept = default;
+
+    Reflection::Reflection(const Reflection& other) : m_impl(other.m_impl ? new ReflectionImpl(*other.m_impl) : nullptr)
+    {
+    }
+
+    Reflection::Reflection(Reflection&& other) noexcept : m_impl(std::move(other.m_impl))
+    {
+        other.m_impl = nullptr;
+    }
+
+    Reflection::~Reflection() noexcept
+    {
+        delete m_impl;
+    }
+
+    Reflection& Reflection::operator=(const Reflection& other)
+    {
+        if (this != &other)
+        {
+            delete m_impl;
+            m_impl = nullptr;
+
+            if (other.m_impl)
+            {
+                m_impl = new ReflectionImpl(*other.m_impl);
+            }
+        }
+        return *this;
+    }
+
+    Reflection& Reflection::operator=(Reflection&& other) noexcept
+    {
+        if (this != &other)
+        {
+            delete m_impl;
+            m_impl = std::move(other.m_impl);
+            other.m_impl = nullptr;
+        }
+        return *this;
+    }
+
+    bool Reflection::Valid() const noexcept
+    {
+        return m_impl != nullptr;
+    }
+
+    uint32_t Reflection::NumResources() const noexcept
+    {
+        return m_impl->NumResources();
+    }
+
+    const Reflection::ResourceDesc* Reflection::ResourceByIndex(uint32_t index) const noexcept
+    {
+        return m_impl->ResourceByIndex(index);
+    }
+
+    const Reflection::ResourceDesc* Reflection::ResourceByName(const char* name) const noexcept
+    {
+        return m_impl->ResourceByName(name);
+    }
+
+    uint32_t Reflection::NumConstantBuffers() const noexcept
+    {
+        return m_impl->NumConstantBuffers();
+    }
+
+    const Reflection::ConstantBuffer* Reflection::ConstantBufferByIndex(uint32_t index) const noexcept
+    {
+        return m_impl->ConstantBufferByIndex(index);
+    }
+
+    const Reflection::ConstantBuffer* Reflection::ConstantBufferByName(const char* name) const noexcept
+    {
+        return m_impl->ConstantBufferByName(name);
+    }
+
+    uint32_t Reflection::NumInputParameters() const noexcept
+    {
+        return m_impl->NumInputParameters();
+    }
+
+    const Reflection::SignatureParameterDesc* Reflection::InputParameter(uint32_t index) const noexcept
+    {
+        return m_impl->InputParameter(index);
+    }
+
+    uint32_t Reflection::NumOutputParameters() const noexcept
+    {
+        return m_impl->NumOutputParameters();
+    }
+
+    const Reflection::SignatureParameterDesc* Reflection::OutputParameter(uint32_t index) const noexcept
+    {
+        return m_impl->OutputParameter(index);
+    }
+
+    Reflection::PrimitiveTopology Reflection::GSHSInputPrimitive() const noexcept
+    {
+        return m_impl->GSHSInputPrimitive();
+    }
+
+    Reflection::PrimitiveTopology Reflection::GSOutputTopology() const noexcept
+    {
+        return m_impl->GSOutputTopology();
+    }
+
+    uint32_t Reflection::GSMaxNumOutputVertices() const noexcept
+    {
+        return m_impl->GSMaxNumOutputVertices();
+    }
+
+    uint32_t Reflection::GSNumInstances() const noexcept
+    {
+        return m_impl->GSNumInstances();
+    }
+
+    Reflection::TessellatorOutputPrimitive Reflection::HSOutputPrimitive() const noexcept
+    {
+        return m_impl->HSOutputPrimitive();
+    }
+
+    Reflection::TessellatorPartitioning Reflection::HSPartitioning() const noexcept
+    {
+        return m_impl->HSPartitioning();
+    }
+
+    Reflection::TessellatorDomain Reflection::HSDSTessellatorDomain() const noexcept
+    {
+        return m_impl->HSDSTessellatorDomain();
+    }
+
+    uint32_t Reflection::HSDSNumPatchConstantParameters() const noexcept
+    {
+        return m_impl->HSDSNumPatchConstantParameters();
+    }
+
+    const Reflection::SignatureParameterDesc* Reflection::HSDSPatchConstantParameter(uint32_t index) const noexcept
+    {
+        return m_impl->HSDSPatchConstantParameter(index);
+    }
+
+    uint32_t Reflection::HSDSNumConrolPoints() const noexcept
+    {
+        return m_impl->HSDSNumConrolPoints();
+    }
+
+    uint32_t Reflection::CSBlockSizeX() const noexcept
+    {
+        return m_impl->CSBlockSizeX();
+    }
+
+    uint32_t Reflection::CSBlockSizeY() const noexcept
+    {
+        return m_impl->CSBlockSizeY();
+    }
+
+    uint32_t Reflection::CSBlockSizeZ() const noexcept
+    {
+        return m_impl->CSBlockSizeZ();
     }
 
 
@@ -1245,7 +2423,7 @@ namespace ShaderConductor
                          static_cast<UINT32>(moduleNamesUtf16.size()), nullptr, 0, &linkResult));
 
         Compiler::ResultDesc binaryResult{};
-        ConvertDxcResult(binaryResult, linkResult, ShadingLanguage::Dxil, false);
+        ConvertDxcResult(binaryResult, linkResult, ShadingLanguage::Dxil, false, false);
 
         Compiler::SourceDesc source{};
         source.entryPoint = modules.entryPoint;
@@ -1253,6 +2431,16 @@ namespace ShaderConductor
         return ConvertBinary(binaryResult, source, options, target);
     }
 } // namespace ShaderConductor
+
+namespace
+{
+#ifdef LLVM_ON_WIN32
+    Reflection MakeDxilReflection(IDxcBlob* dxilBlob)
+    {
+        return Reflection::ReflectionImpl::Make(dxilBlob);
+    }
+#endif
+} // namespace
 
 #ifdef _WIN32
 BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
