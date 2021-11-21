@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <cctype>
 #include <fstream>
 #include <memory>
 
@@ -371,6 +372,7 @@ namespace
 #ifdef LLVM_ON_WIN32
     Reflection MakeDxilReflection(IDxcBlob* dxilBlob);
 #endif
+    Reflection MakeSpirVReflection(const spirv_cross::Compiler& compiler);
 
     void ConvertDxcResult(Compiler::ResultDesc& result, IDxcOperationResult* dxcResult, ShadingLanguage targetLanguage, bool asModule,
                           bool needReflection)
@@ -406,7 +408,7 @@ namespace
 #ifdef LLVM_ON_WIN32
                 if ((targetLanguage == ShadingLanguage::Dxil) && !asModule)
                 {
-                    // Gather reflection information only for ShadingLanguage::Dxil
+                    // Gather reflection information only for ShadingLanguage::Dxil. SPIR-V reflection is gathered when cross-compiling.
                     result.reflection = MakeDxilReflection(program);
                 }
 #else
@@ -838,7 +840,10 @@ namespace
             const std::string targetStr = compiler->compile();
             ret.target.Reset(targetStr.data(), static_cast<uint32_t>(targetStr.size()));
             ret.hasError = false;
-            ret.reflection = std::move(binaryResult.reflection);
+            if (options.needReflection)
+            {
+                ret.reflection = MakeSpirVReflection(*compiler);
+            }
         }
         catch (spirv_cross::CompilerError& error)
         {
@@ -1075,6 +1080,108 @@ namespace ShaderConductor
         }
 #endif
 
+        VariableTypeImpl(const spirv_cross::Compiler& compiler, const spirv_cross::SPIRType& spirvParentReflectionType,
+                         uint32_t variableIndex, const spirv_cross::SPIRType& spirvReflectionType)
+        {
+            switch (spirvReflectionType.basetype)
+            {
+            case spirv_cross::SPIRType::Boolean:
+                m_type = DataType::Bool;
+                m_name = "bool";
+                break;
+            case spirv_cross::SPIRType::Int:
+                m_type = DataType::Int;
+                m_name = "int";
+                break;
+            case spirv_cross::SPIRType::UInt:
+                m_type = DataType::Uint;
+                m_name = "uint";
+                break;
+            case spirv_cross::SPIRType::Float:
+                m_type = DataType::Float;
+                m_name = "float";
+                break;
+
+            case spirv_cross::SPIRType::Half:
+                m_type = DataType::Half;
+                m_name = "half";
+                break;
+            case spirv_cross::SPIRType::Short:
+                m_type = DataType::Int16;
+                m_name = "int16_t";
+                break;
+            case spirv_cross::SPIRType::UShort:
+                m_type = DataType::Uint16;
+                m_name = "uint16_t";
+                break;
+
+            case spirv_cross::SPIRType::Struct:
+                m_type = DataType::Struct;
+                m_name = compiler.get_name(spirvReflectionType.self);
+
+                for (uint32_t memberIndex = 0; memberIndex < spirvReflectionType.member_types.size(); ++memberIndex)
+                {
+                    VariableDesc member{};
+
+                    const std::string& memberName = compiler.get_member_name(spirvReflectionType.self, memberIndex);
+                    std::strncpy(member.name, memberName.c_str(), sizeof(member.name));
+
+                    member.type = Make(compiler, spirvReflectionType, memberIndex, compiler.get_type(spirvReflectionType.member_types[memberIndex]));
+
+                    member.offset = compiler.type_struct_member_offset(spirvReflectionType, memberIndex);
+                    member.size = static_cast<uint32_t>(compiler.get_declared_struct_member_size(spirvReflectionType, memberIndex));
+
+                    m_members.emplace_back(std::move(member));
+                }
+                break;
+
+            case spirv_cross::SPIRType::Void:
+                m_type = DataType::Void;
+                m_name = "void";
+                break;
+
+            default:
+                llvm_unreachable("Unsupported variable type.");
+                break;
+            }
+
+            if (spirvReflectionType.columns == 1)
+            {
+                if (spirvReflectionType.vecsize > 1)
+                {
+                    m_name += std::to_string(spirvReflectionType.vecsize);
+                }
+            }
+            else
+            {
+                m_name += std::to_string(spirvReflectionType.columns) + 'x' + std::to_string(spirvReflectionType.vecsize);
+            }
+
+            m_rows = spirvReflectionType.columns;
+            m_columns = spirvReflectionType.vecsize;
+            if (compiler.has_member_decoration(spirvParentReflectionType.self, variableIndex, spv::DecorationColMajor))
+            {
+                std::swap(m_rows, m_columns);
+            }
+            if (spirvReflectionType.array.empty())
+            {
+                m_elements = 0;
+            }
+            else
+            {
+                m_elements = spirvReflectionType.array[0];
+            }
+
+            if (!spirvReflectionType.array.empty())
+            {
+                m_elementStride = compiler.type_struct_member_array_stride(spirvParentReflectionType, variableIndex);
+            }
+            else
+            {
+                m_elementStride = 0;
+            }
+        }
+
         const char* Name() const noexcept
         {
             return m_name.c_str();
@@ -1141,6 +1248,14 @@ namespace ShaderConductor
             return ret;
         }
 #endif
+
+        static VariableType Make(const spirv_cross::Compiler& compiler, const spirv_cross::SPIRType& spirvParentReflectionType, uint32_t variableIndex,
+                                 const spirv_cross::SPIRType& spirvReflectionType)
+        {
+            VariableType ret;
+            ret.m_impl = new VariableTypeImpl(compiler, spirvParentReflectionType, variableIndex, spirvReflectionType);
+            return ret;
+        }
 
     private:
         std::string m_name;
@@ -1279,6 +1394,31 @@ namespace ShaderConductor
         }
 #endif
 
+        explicit ConstantBufferImpl(const spirv_cross::Compiler& compiler, const spirv_cross::Resource& resource)
+        {
+            const auto& cbufferType = compiler.get_type(resource.type_id);
+
+            m_name = compiler.get_name(resource.id);
+
+            for (uint32_t variableIndex = 0; variableIndex < cbufferType.member_types.size(); ++variableIndex)
+            {
+                VariableDesc variableDesc{};
+
+                const std::string& varName = compiler.get_member_name(cbufferType.self, variableIndex);
+                std::strncpy(variableDesc.name, varName.c_str(), sizeof(variableDesc.name));
+
+                variableDesc.type = VariableType::VariableTypeImpl::Make(compiler, cbufferType, variableIndex,
+                                                                         compiler.get_type(cbufferType.member_types[variableIndex]));
+
+                variableDesc.offset = compiler.type_struct_member_offset(cbufferType, variableIndex);
+                variableDesc.size = static_cast<uint32_t>(compiler.get_declared_struct_member_size(cbufferType, variableIndex));
+
+                m_variableDescs.emplace_back(std::move(variableDesc));
+            }
+
+            m_size = static_cast<uint32_t>(compiler.get_declared_struct_size(cbufferType));
+        }
+
         const char* Name() const noexcept
         {
             return m_name.c_str();
@@ -1325,6 +1465,13 @@ namespace ShaderConductor
             return ret;
         }
 #endif
+
+        static ConstantBuffer Make(const spirv_cross::Compiler& compiler, const spirv_cross::Resource& resource)
+        {
+            ConstantBuffer ret;
+            ret.m_impl = new ConstantBufferImpl(compiler, resource);
+            return ret;
+        }
 
     private:
         std::string m_name;
@@ -1897,6 +2044,374 @@ namespace ShaderConductor
         }
 #endif
 
+        explicit ReflectionImpl(const spirv_cross::Compiler& compiler)
+        {
+            spirv_cross::ShaderResources resources = compiler.get_shader_resources();
+
+            for (const auto& resource : resources.uniform_buffers)
+            {
+                ResourceDesc reflectionDesc{};
+                this->ExtractReflection(reflectionDesc, compiler, resource.id);
+                reflectionDesc.type = ShaderResourceType::ConstantBuffer;
+
+                m_resourceDescs.emplace_back(std::move(reflectionDesc));
+
+                m_constantBuffers.emplace_back(ConstantBuffer::ConstantBufferImpl::Make(compiler, resource));
+            }
+
+            for (const auto& resource : resources.storage_buffers)
+            {
+                ResourceDesc reflectionDesc{};
+                this->ExtractReflection(reflectionDesc, compiler, resource.id);
+
+                const spirv_cross::Bitset& typeFlags = compiler.get_decoration_bitset(compiler.get_type(resource.type_id).self);
+                const auto& type = compiler.get_type(resource.type_id);
+
+                const bool ssboBlock = type.storage == spv::StorageClassStorageBuffer ||
+                                       (type.storage == spv::StorageClassUniform && typeFlags.get(spv::DecorationBufferBlock));
+                if (ssboBlock)
+                {
+                    spirv_cross::Bitset buffer_flags = compiler.get_buffer_block_flags(resource.id);
+                    if (buffer_flags.get(spv::DecorationNonWritable))
+                    {
+                        reflectionDesc.type = ShaderResourceType::ShaderResourceView;
+                    }
+                    else
+                    {
+                        reflectionDesc.type = ShaderResourceType::UnorderedAccessView;
+                    }
+                }
+                else
+                {
+                    reflectionDesc.type = ShaderResourceType::ShaderResourceView;
+                }
+
+                m_resourceDescs.emplace_back(std::move(reflectionDesc));
+            }
+
+            for (const auto& resource : resources.storage_images)
+            {
+                ResourceDesc reflectionDesc{};
+                this->ExtractReflection(reflectionDesc, compiler, resource.id);
+                reflectionDesc.type = ShaderResourceType::UnorderedAccessView;
+
+                m_resourceDescs.emplace_back(std::move(reflectionDesc));
+            }
+
+            for (const auto& resource : resources.separate_images)
+            {
+                ResourceDesc reflectionDesc{};
+                this->ExtractReflection(reflectionDesc, compiler, resource.id);
+                reflectionDesc.type = ShaderResourceType::Texture;
+
+                m_resourceDescs.emplace_back(std::move(reflectionDesc));
+            }
+
+            for (const auto& resource : resources.separate_samplers)
+            {
+                ResourceDesc reflectionDesc{};
+                this->ExtractReflection(reflectionDesc, compiler, resource.id);
+                reflectionDesc.type = ShaderResourceType::Sampler;
+
+                m_resourceDescs.emplace_back(std::move(reflectionDesc));
+            }
+
+            uint32_t combinedBinding = 0;
+            for (const auto& resource : resources.sampled_images)
+            {
+                ResourceDesc reflectionDesc{};
+                this->ExtractReflection(reflectionDesc, compiler, resource.id);
+                reflectionDesc.bindPoint = combinedBinding;
+                reflectionDesc.type = ShaderResourceType::Texture;
+
+                m_resourceDescs.emplace_back(std::move(reflectionDesc));
+                ++combinedBinding;
+            }
+
+            for (const auto& inputParam : resources.builtin_inputs)
+            {
+                const std::string semantic = this->ExtractBuiltInemantic(inputParam.builtin);
+                if (!semantic.empty())
+                {
+                    SignatureParameterDesc paramDesc{};
+                    this->ExtractParameter(paramDesc, compiler, inputParam.resource, semantic);
+
+                    const auto& type = compiler.get_type(inputParam.resource.type_id);
+                    switch (inputParam.builtin)
+                    {
+                    case spv::BuiltInTessLevelInner:
+                    case spv::BuiltInTessLevelOuter:
+                        for (uint32_t patchConstantParamIndex = 0; patchConstantParamIndex < type.array[0]; ++patchConstantParamIndex)
+                        {
+                            if (inputParam.builtin == spv::BuiltInTessLevelOuter)
+                            {
+                                paramDesc.semanticIndex = patchConstantParamIndex;
+                                paramDesc.mask = ComponentMask::W;
+                            }
+                            else
+                            {
+                                paramDesc.semanticIndex = 0;
+                                paramDesc.mask = ComponentMask::X;
+                            }
+
+                            m_hsDSPatchConstantParams.emplace_back(std::move(paramDesc));
+                        }
+                        break;
+
+                    default:
+                        m_inputParams.emplace_back(std::move(paramDesc));
+                        break;
+                    }
+                }
+            }
+
+            for (const auto& inputParam : resources.stage_inputs)
+            {
+                SignatureParameterDesc paramDesc{};
+                this->ExtractParameter(paramDesc, compiler, inputParam);
+
+                if (compiler.get_decoration(inputParam.id, spv::DecorationPatch))
+                {
+                    m_hsDSPatchConstantParams.emplace_back(std::move(paramDesc));
+                }
+                else
+                {
+                    m_inputParams.emplace_back(std::move(paramDesc));
+                }
+            }
+
+            for (const auto& outputParam : resources.builtin_outputs)
+            {
+                const std::string semantic = this->ExtractBuiltInemantic(outputParam.builtin);
+                if (!semantic.empty())
+                {
+                    SignatureParameterDesc paramDesc{};
+                    const auto& type = compiler.get_type(outputParam.resource.type_id);
+                    this->ExtractParameter(paramDesc, compiler, outputParam.resource, semantic);
+
+                    switch (type.basetype)
+                    {
+                    case spirv_cross::SPIRType::UInt:
+                        paramDesc.componentType = VariableType::DataType::Uint;
+                        break;
+                    case spirv_cross::SPIRType::Int:
+                        paramDesc.componentType = VariableType::DataType::Int;
+                        break;
+                    case spirv_cross::SPIRType::Float:
+                        paramDesc.componentType = VariableType::DataType::Float;
+                        break;
+
+                    default:
+                        llvm_unreachable("Unsupported parameter component type.");
+                        break;
+                    }
+
+                    if (type.vecsize > 0)
+                    {
+                        paramDesc.mask = ComponentMask::X;
+                    }
+                    if (type.vecsize > 1)
+                    {
+                        paramDesc.mask |= ComponentMask::Y;
+                    }
+                    if (type.vecsize > 2)
+                    {
+                        paramDesc.mask |= ComponentMask::Z;
+                    }
+                    if (type.vecsize > 3)
+                    {
+                        paramDesc.mask |= ComponentMask::W;
+                    }
+
+                    switch (outputParam.builtin)
+                    {
+                    case spv::BuiltInTessLevelInner:
+                    case spv::BuiltInTessLevelOuter:
+                        for (uint32_t patchConstantParamIndex = 0; patchConstantParamIndex < type.array[0]; ++patchConstantParamIndex)
+                        {
+                            paramDesc.semanticIndex = patchConstantParamIndex;
+
+                            if (outputParam.builtin == spv::BuiltInTessLevelOuter)
+                            {
+                                paramDesc.mask = ComponentMask::W;
+                            }
+                            else
+                            {
+                                paramDesc.mask = ComponentMask::X;
+                            }
+
+                            m_hsDSPatchConstantParams.emplace_back(std::move(paramDesc));
+                        }
+                        break;
+
+                    default:
+                        m_outputParams.emplace_back(std::move(paramDesc));
+                        break;
+                    }
+                }
+            }
+
+            for (const auto& outputParam : resources.stage_outputs)
+            {
+                SignatureParameterDesc paramDesc{};
+                this->ExtractParameter(paramDesc, compiler, outputParam);
+
+                m_outputParams.emplace_back(std::move(paramDesc));
+            }
+
+            m_gsHSInputPrimitive = Reflection::PrimitiveTopology::Undefined;
+            m_gsOutputTopology = Reflection::PrimitiveTopology::Undefined;
+            m_gsMaxNumOutputVertices = 0;
+            m_gsNumInstances = 0;
+            m_hsOutputPrimitive = Reflection::TessellatorOutputPrimitive::Undefined;
+            m_hsPartitioning = Reflection::TessellatorPartitioning::Undefined;
+            m_hSDSTessellatorDomain = Reflection::TessellatorDomain::Undefined;
+            m_hsDSNumCtrlPoints = 0;
+            m_csBlockSizeX = m_csBlockSizeY = m_csBlockSizeZ = 0;
+
+            const auto& modes = compiler.get_execution_mode_bitset();
+            switch (compiler.get_execution_model())
+            {
+            case spv::ExecutionModelTessellationControl:
+                if (modes.get(spv::ExecutionModeOutputVertices))
+                {
+                    m_hsDSNumCtrlPoints = compiler.get_execution_mode_argument(spv::ExecutionModeOutputVertices, 0);
+                    switch (m_hsDSNumCtrlPoints)
+                    {
+                    case 2:
+                        m_hSDSTessellatorDomain = TessellatorDomain::Line;
+                        break;
+                    case 3:
+                        m_hSDSTessellatorDomain = TessellatorDomain::Triangle;
+                        break;
+                    case 4:
+                        m_hSDSTessellatorDomain = TessellatorDomain::Quad;
+                        break;
+
+                    default:
+                        break;
+                    }
+                }
+
+                if (modes.get(spv::ExecutionModeInputPoints))
+                {
+                    m_gsHSInputPrimitive = PrimitiveTopology::Patches_1_CtrlPoint;
+                }
+                else if (modes.get(spv::ExecutionModeInputLines))
+                {
+                    m_gsHSInputPrimitive = PrimitiveTopology::Patches_2_CtrlPoint;
+                }
+                else if (modes.get(spv::ExecutionModeTriangles))
+                {
+                    m_gsHSInputPrimitive = PrimitiveTopology::Patches_3_CtrlPoint;
+                }
+
+                if (modes.get(spv::ExecutionModeVertexOrderCw))
+                {
+                    m_hsOutputPrimitive = TessellatorOutputPrimitive::TriangleCW;
+                }
+                else if (modes.get(spv::ExecutionModeVertexOrderCcw))
+                {
+                    m_hsOutputPrimitive = TessellatorOutputPrimitive::TriangleCCW;
+                }
+
+                if (modes.get(spv::ExecutionModeSpacingEqual))
+                {
+                    m_hsPartitioning = TessellatorPartitioning::Integer;
+                }
+                else if (modes.get(spv::ExecutionModeSpacingFractionalOdd))
+                {
+                    m_hsPartitioning = TessellatorPartitioning::FractionalOdd;
+                }
+                else if (modes.get(spv::ExecutionModeSpacingFractionalOdd))
+                {
+                    m_hsPartitioning = TessellatorPartitioning::FractionalEven;
+                }
+                break;
+
+            case spv::ExecutionModelTessellationEvaluation:
+                if (modes.get(spv::ExecutionModeIsolines))
+                {
+                    m_hSDSTessellatorDomain = TessellatorDomain::Line;
+                    m_hsDSNumCtrlPoints = 2;
+                }
+                else if (modes.get(spv::ExecutionModeTriangles))
+                {
+                    m_hSDSTessellatorDomain = TessellatorDomain::Triangle;
+                    m_hsDSNumCtrlPoints = 3;
+                }
+                else if (modes.get(spv::ExecutionModeQuads))
+                {
+                    m_hSDSTessellatorDomain = TessellatorDomain::Quad;
+                    m_hsDSNumCtrlPoints = 4;
+                }
+                break;
+
+            case spv::ExecutionModelGeometry:
+                if (modes.get(spv::ExecutionModeOutputVertices))
+                {
+                    m_gsMaxNumOutputVertices = compiler.get_execution_mode_argument(spv::ExecutionModeOutputVertices, 0);
+                }
+
+                if (modes.get(spv::ExecutionModeInvocations))
+                {
+                    m_gsNumInstances = compiler.get_execution_mode_argument(spv::ExecutionModeInvocations, 0);
+                }
+
+                if (modes.get(spv::ExecutionModeInputPoints))
+                {
+                    m_gsHSInputPrimitive = PrimitiveTopology::Points;
+                }
+                else if (modes.get(spv::ExecutionModeInputLines))
+                {
+                    m_gsHSInputPrimitive = PrimitiveTopology::Lines;
+                }
+                else if (modes.get(spv::ExecutionModeTriangles))
+                {
+                    m_gsHSInputPrimitive = PrimitiveTopology::Triangles;
+                }
+                else if (modes.get(spv::ExecutionModeInputLinesAdjacency))
+                {
+                    m_gsHSInputPrimitive = PrimitiveTopology::LinesAdj;
+                }
+                else if (modes.get(spv::ExecutionModeInputTrianglesAdjacency))
+                {
+                    m_gsHSInputPrimitive = PrimitiveTopology::TrianglesAdj;
+                }
+
+                if (modes.get(spv::ExecutionModeOutputPoints))
+                {
+                    m_gsOutputTopology = PrimitiveTopology::Points;
+                }
+                else if (modes.get(spv::ExecutionModeOutputLineStrip))
+                {
+                    m_gsOutputTopology = PrimitiveTopology::LineStrip;
+                }
+                else if (modes.get(spv::ExecutionModeOutputTriangleStrip))
+                {
+                    m_gsOutputTopology = PrimitiveTopology::TriangleStrip;
+                }
+                break;
+
+            case spv::ExecutionModelGLCompute:
+            {
+                spirv_cross::SpecializationConstant spec_x, spec_y, spec_z;
+                compiler.get_work_group_size_specialization_constants(spec_x, spec_y, spec_z);
+
+                m_csBlockSizeX = spec_x.id != spirv_cross::ID(0) ? spec_x.constant_id
+                                                                 : compiler.get_execution_mode_argument(spv::ExecutionModeLocalSize, 0);
+                m_csBlockSizeY = spec_y.id != spirv_cross::ID(0) ? spec_y.constant_id
+                                                                 : compiler.get_execution_mode_argument(spv::ExecutionModeLocalSize, 1);
+                m_csBlockSizeZ = spec_z.id != spirv_cross::ID(0) ? spec_z.constant_id
+                                                                 : compiler.get_execution_mode_argument(spv::ExecutionModeLocalSize, 2);
+                break;
+            }
+
+            default:
+                break;
+            }
+        }
+
         uint32_t NumResources() const noexcept
         {
             return static_cast<uint32_t>(m_resourceDescs.size());
@@ -2061,6 +2576,149 @@ namespace ShaderConductor
             return ret;
         }
 #endif
+
+        static Reflection Make(const spirv_cross::Compiler& compiler)
+        {
+            Reflection ret;
+            ret.m_impl = new ReflectionImpl(compiler);
+            return ret;
+        }
+
+    private:
+        static std::string ExtractBuiltInemantic(spv::BuiltIn builtin)
+        {
+            std::string semantic;
+            switch (builtin)
+            {
+            case spv::BuiltInPosition:
+            case spv::BuiltInFragCoord:
+                semantic = "SV_Position";
+                break;
+
+            case spv::BuiltInFragDepth:
+                semantic = "SV_Depth";
+                break;
+
+            case spv::BuiltInVertexId:
+            case spv::BuiltInVertexIndex:
+                semantic = "SV_VertexID";
+                break;
+
+            case spv::BuiltInInstanceId:
+            case spv::BuiltInInstanceIndex:
+                semantic = "SV_InstanceID";
+                break;
+
+            case spv::BuiltInSampleId:
+                semantic = "SV_SampleIndex";
+                break;
+
+            case spv::BuiltInSampleMask:
+                semantic = "SV_Coverage";
+                break;
+
+            case spv::BuiltInTessLevelInner:
+                semantic = "SV_InsideTessFactor";
+                break;
+
+            case spv::BuiltInTessLevelOuter:
+                semantic = "SV_TessFactor";
+                break;
+
+            case spv::BuiltInGlobalInvocationId:
+            case spv::BuiltInLocalInvocationId:
+            case spv::BuiltInLocalInvocationIndex:
+            case spv::BuiltInWorkgroupId:
+            case spv::BuiltInFrontFacing:
+            case spv::BuiltInInvocationId:
+            case spv::BuiltInPrimitiveId:
+            case spv::BuiltInTessCoord:
+                break;
+
+            default:
+                llvm_unreachable("Unsupported builtin.");
+            }
+            return semantic;
+        }
+
+        static void ExtractReflection(ResourceDesc& reflectionDesc, const spirv_cross::Compiler& compiler, spirv_cross::ID id)
+        {
+            const uint32_t descSet = compiler.get_decoration(id, spv::DecorationDescriptorSet);
+            const uint32_t binding = compiler.get_decoration(id, spv::DecorationBinding);
+
+            const std::string& res_name = compiler.get_name(id);
+            std::strncpy(reflectionDesc.name, res_name.c_str(), sizeof(reflectionDesc.name));
+            reflectionDesc.space = descSet;
+            reflectionDesc.bindPoint = binding;
+            reflectionDesc.bindCount = 1;
+        }
+
+        static void ExtractParameter(SignatureParameterDesc& paramDesc, const spirv_cross::Compiler& compiler,
+                                     const spirv_cross::Resource& resource, const std::string& semantic)
+        {
+            paramDesc.semanticIndex = 0;
+            for (auto iter = semantic.rbegin(); iter != semantic.rend(); ++iter)
+            {
+                if (!std::isdigit(*iter))
+                {
+                    const int sep = static_cast<int>(std::distance(semantic.begin(), iter.base()));
+                    const std::string indexPart = semantic.substr(sep);
+                    if (indexPart.empty())
+                    {
+                        paramDesc.semanticIndex = 0;
+                    }
+                    else
+                    {
+                        paramDesc.semanticIndex = std::atoi(indexPart.c_str());
+                    }
+                    std::strncpy(paramDesc.semantic, semantic.c_str(), std::min<int>(sep, sizeof(paramDesc.semantic)));
+                    break;
+                }
+            }
+
+            const auto& type = compiler.get_type(resource.type_id);
+            switch (type.basetype)
+            {
+            case spirv_cross::SPIRType::UInt:
+                paramDesc.componentType = VariableType::DataType::Uint;
+                break;
+            case spirv_cross::SPIRType::Int:
+                paramDesc.componentType = VariableType::DataType::Int;
+                break;
+            case spirv_cross::SPIRType::Float:
+                paramDesc.componentType = VariableType::DataType::Float;
+                break;
+
+            default:
+                llvm_unreachable("Unsupported parameter component type.");
+                break;
+            }
+
+            if (type.vecsize > 0)
+            {
+                paramDesc.mask = ComponentMask::X;
+            }
+            if (type.vecsize > 1)
+            {
+                paramDesc.mask |= ComponentMask::Y;
+            }
+            if (type.vecsize > 2)
+            {
+                paramDesc.mask |= ComponentMask::Z;
+            }
+            if (type.vecsize > 3)
+            {
+                paramDesc.mask |= ComponentMask::W;
+            }
+
+            paramDesc.location = compiler.get_decoration(resource.id, spv::DecorationLocation);
+        }
+
+        static void ExtractParameter(SignatureParameterDesc& paramDesc, const spirv_cross::Compiler& compiler,
+                                     const spirv_cross::Resource& resource)
+        {
+            ExtractParameter(paramDesc, compiler, resource, compiler.get_name(resource.id));
+        }
 
     private:
         std::vector<ResourceDesc> m_resourceDescs;
@@ -2440,6 +3098,11 @@ namespace
         return Reflection::ReflectionImpl::Make(dxilBlob);
     }
 #endif
+
+    Reflection MakeSpirVReflection(const spirv_cross::Compiler& compiler)
+    {
+        return Reflection::ReflectionImpl::Make(compiler);
+    }
 } // namespace
 
 #ifdef _WIN32
