@@ -153,6 +153,45 @@ stages:
     steps:
     - template: CI/AzurePipelines/ContinuousBuild.yml
 
+  - job: Windows_vc143_x64
+    pool:
+      vmImage: windows-2022
+
+    variables:
+      compiler: vc143
+      combination: 'win-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: 'choco install ninja'
+      testCommand: './$(buildFolder)/Bin/ShaderConductorTest.exe'
+      artifactBinaries: |
+        Bin/ShaderConductor.dll
+        Bin/ShaderConductorCmd.exe
+        Bin/dxcompiler.dll
+        Lib/ShaderConductor.lib
+
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
+
+  - job: Windows_vc143_arm64
+    pool:
+      vmImage: windows-2022
+
+    variables:
+      compiler: vc143
+      platform: arm64
+      combination: 'win-$(compiler)-$(platform)-$(configuration)'
+      buildFolder: 'Build/ninja-$(combination)'
+      installCommand: 'choco install ninja'
+      testCommand: ''
+      artifactBinaries: |
+        Bin/ShaderConductor.dll
+        Bin/ShaderConductorCmd.exe
+        Bin/dxcompiler.dll
+        Lib/ShaderConductor.lib
+
+    steps:
+    - template: CI/AzurePipelines/ContinuousBuild.yml
+
   - job: Linux_gcc7
     pool:
       vmImage: Ubuntu-18.04
