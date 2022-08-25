@@ -182,6 +182,9 @@ namespace ShaderConductor
             int shiftAllSamplersBindings = 0;
             int shiftAllCBuffersBindings = 0;
             int shiftAllUABuffersBindings = 0;
+
+            int numOfCustomArgs = 0;
+            const char** customArgs = nullptr;
         };
 
         struct TargetDesc
