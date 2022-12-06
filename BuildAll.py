@@ -224,7 +224,7 @@ if __name__ == "__main__":
 		hostArch = "x64"
 	elif (hostArch == "i386"):
 		hostArch = "x86"
-	elif (hostArch == "ARM64"):
+	elif (hostArch.lower() == "arm64"):
 		hostArch = "arm64"
 	else:
 		LogError("Unknown host architecture %s.\n" % hostArch)
