@@ -661,6 +661,13 @@ namespace
             llvm_unreachable("Invalid shading language.");
         }
 
+        for (int i = 0; i < options.numOfCustomArgs; ++i)
+        {
+            std::wstring utf16Arg;
+            Unicode::UTF8ToUTF16String(options.customArgs[i], &utf16Arg);
+            dxcArgStrings.emplace_back(std::move(utf16Arg));
+        }
+
         std::vector<const wchar_t*> dxcArgs;
         dxcArgs.reserve(dxcArgStrings.size());
         for (const auto& arg : dxcArgStrings)
