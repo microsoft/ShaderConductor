@@ -126,12 +126,12 @@ namespace ShaderConductor
     public:
         struct ShaderModel
         {
-            uint8_t major_ver : 6;
-            uint8_t minor_ver : 2;
+            uint8_t major_ver : 4;
+            uint8_t minor_ver : 4;
 
             uint32_t FullVersion() const noexcept
             {
-                return (major_ver << 2) | minor_ver;
+                return (major_ver << 4) | minor_ver;
             }
 
             bool operator<(const ShaderModel& other) const noexcept
