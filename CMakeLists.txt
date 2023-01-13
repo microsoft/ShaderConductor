@@ -11,6 +11,7 @@ endif()
 
 set(PROJECT_NAME ShaderConductor)
 project(${PROJECT_NAME})
+
 if(SC_WITH_CSHARP)
     project(${PROJECT_NAME} LANGUAGES CSharp)
     set(CMAKE_CSharp_FLAGS "/langversion:7")
@@ -32,7 +33,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${SC_BUILD_DIR}/Lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${SC_BUILD_DIR}/Lib)
 
 if((CMAKE_C_COMPILER_ID MATCHES GNU) OR (CMAKE_C_COMPILER_ID MATCHES Clang))
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1z")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 endif()
 if (CMAKE_C_COMPILER_ID MATCHES Clang)
     foreach(flagVar
