@@ -1,6 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
+if(NOT EXISTS ${git_executable})
+    unset(git_executable CACHE)
+endif()
+
 find_program(git_executable NAMES git git.exe git.cmd)
 if(NOT git_executable)
     message(FATAL_ERROR "Failed to find git.")

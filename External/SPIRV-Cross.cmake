@@ -1,9 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
-set(SPIRV_Cross_REV "8891bd35120ca91c252a66ccfdc3f9a9d03c70cd")
+set(SPIRV_Cross_REV "37dfb3f45f4fc47c841f81e618c602f6f3de0f17")
 
 UpdateExternalLib("SPIRV-Cross" "https://github.com/KhronosGroup/SPIRV-Cross.git" ${SPIRV_Cross_REV})
+
+set(SPIRV_CROSS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(SPIRV-Cross EXCLUDE_FROM_ALL)
 foreach(target
