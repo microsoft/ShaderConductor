@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
-set(DirectXShaderCompiler_REV "634a23537df7e85512437a4976f9bf9fcd095e18")
+set(DirectXShaderCompiler_REV "cc50c79df1272a358fbf8b16e85dc6a9e5bc2ead")
 
 UpdateExternalLib("DirectXShaderCompiler" "https://github.com/Microsoft/DirectXShaderCompiler.git" ${DirectXShaderCompiler_REV})
 
@@ -40,6 +40,7 @@ endif()
 set(SPIRV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
 set(SPIRV_SKIP_TESTS ON CACHE BOOL "" FORCE)
+
 add_subdirectory(DirectXShaderCompiler EXCLUDE_FROM_ALL)
 foreach(target
     "clang" "dxc"
@@ -53,9 +54,12 @@ foreach(target
     "ClangDiagnosticAnalysis" "ClangDiagnosticAST" "ClangDiagnosticComment" "ClangDiagnosticCommon" "ClangDiagnosticDriver"
     "ClangDiagnosticFrontend" "ClangDiagnosticGroups" "ClangDiagnosticIndexName" "ClangDiagnosticLex" "ClangDiagnosticParse"
     "ClangDiagnosticSema" "ClangDiagnosticSerialization" "ClangStmtNodes"
-    "LLVMAnalysis" "LLVMAsmParser" "LLVMBitReader" "LLVMBitWriter" "LLVMCore" "LLVMDxcSupport" "LLVMDXIL" "LLVMDxilContainer"
+    "DxcDisassembler" "DxcOptimizer" "DxilConstants" "DxilCounters" "DxilDocs" "DxilInstructions" "DxilIntrinsicTables"
+    "DxilMetadata" "DxilOperations" "DxilPIXPasses" "DxilShaderModel" "DxilShaderModelInc" "DxilSigPoint" "DxilValidation" "DxilValidationInc"
+    "HCTGen" "HLSLIntrinsicOp" "HLSLOptions"
+    "LLVMAnalysis" "LLVMAsmParser" "LLVMBitReader" "LLVMBitWriter" "LLVMCore" "LLVMDxcBindingTable" "LLVMDxcSupport" "LLVMDXIL" "LLVMDxilContainer"
     "LLVMDxilPIXPasses" "LLVMDxilRootSignature" "LLVMDxrFallback" "LLVMHLSL" "LLVMInstCombine" "LLVMipa" "LLVMipo" "LLVMIRReader"
-    "LLVMLinker" "LLVMLTO" "LLVMMSSupport" "LLVMOption" "LLVMPasses" "LLVMPassPrinters" "LLVMProfileData" "LLVMScalarOpts" "LLVMSupport"
+    "LLVMLinker" "LLVMMiniz" "LLVMMSSupport" "LLVMOption" "LLVMPasses" "LLVMPassPrinters" "LLVMProfileData" "LLVMScalarOpts" "LLVMSupport"
     "LLVMTableGen" "LLVMTarget" "LLVMTransformUtils" "LLVMVectorize"
     "ClangDriverOptions" "DxcEtw" "intrinsics_gen" "TablegenHLSLOptions"
     "clang-tblgen" "llvm-tblgen" "hlsl_dxcversion_autogen" "hlsl_version_autogen")
