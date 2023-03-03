@@ -251,14 +251,13 @@ stages:
 
   - job: macOS_10_clang
     pool:
-      vmImage: macOS 10.14
+      vmImage: macOS-10.15
 
     variables:
       compiler: clang9
       combination: 'osx-$(compiler)-$(platform)-$(configuration)'
       buildFolder: 'Build/ninja-$(combination)'
       installCommand: |
-        brew update
         brew install ninja
       testCommand: './$(buildFolder)/Bin/ShaderConductorTest'
       artifactBinaries: |
