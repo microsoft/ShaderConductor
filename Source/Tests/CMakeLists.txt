@@ -3,8 +3,13 @@
 
 set(EXE_NAME ShaderConductorTest)
 
+set(HEADER_FILES
+    Common.hpp
+)
+
 set(SOURCE_FILES
-    ShaderConductorTest.cpp
+    Common.cpp
+    CrossCompileTest.cpp
 )
 
 set(DATA_INC_FILES
@@ -38,11 +43,12 @@ set_source_files_properties(${DATA_FILES}
     PROPERTIES VS_TOOL_OVERRIDE "None"
 )
 
+source_group("Header Files" FILES ${HEADER_FILES})
 source_group("Source Files" FILES ${SOURCE_FILES})
 source_group("Data Files\\Input" FILES ${DATA_FILES})
 source_group("Data Files\\Input\\Inc" FILES ${DATA_INC_FILES})
 
-add_executable(${EXE_NAME} ${SOURCE_FILES} ${DATA_FILES} ${DATA_INC_FILES})
+add_executable(${EXE_NAME} ${HEADER_FILES} ${SOURCE_FILES} ${DATA_FILES} ${DATA_INC_FILES})
 
 target_compile_definitions(${EXE_NAME}
     PRIVATE

@@ -12,13 +12,18 @@ struct ParticleForces
     float2 acceleration;
 };
 
-cbuffer cbSimulationConstants : register(b0)
+struct Scene
 {
-    float timeStep;
     float wallStiffness;
 
     float4 gravity;
     float3 planes[4];
+};
+
+cbuffer cbSimulationConstants : register(b0)
+{
+    float timeStep;
+    Scene scene;
 };
 
 RWStructuredBuffer<Particle> particlesRW : register(u0);
@@ -38,11 +43,11 @@ void main(uint3 dtid : SV_DispatchThreadID, uint gi : SV_GroupIndex)
     [unroll]
     for (uint i = 0 ; i < 4 ; ++i)
     {
-        float dist = dot(float3(position, 1), planes[i]);
-        acceleration += min(dist, 0) * -wallStiffness * planes[i].xy;
+        float dist = dot(float3(position, 1), scene.planes[i]);
+        acceleration += min(dist, 0) * -scene.wallStiffness * scene.planes[i].xy;
     }
 
-    acceleration += gravity.xy;
+    acceleration += scene.gravity.xy;
 
     velocity += timeStep * acceleration;
     position += timeStep * velocity;

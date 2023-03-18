@@ -13,8 +13,10 @@ layout(std140) uniform type_cbVS
 
 in vec4 in_var_POSITION;
 
+mat4 spvWorkaroundRowMajor(mat4 wrap) { return wrap; }
+
 void main()
 {
-    gl_Position = cbVS.wvp * in_var_POSITION;
+    gl_Position = spvWorkaroundRowMajor(cbVS.wvp) * in_var_POSITION;
 }
 
